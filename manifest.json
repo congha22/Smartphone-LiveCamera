@@ -1,0 +1,15 @@
+{
+  "Name": "Smartphone Live Camera",
+  "Author": "d5a1lamdtd",
+  "Version": "1.0.0",
+  "Description": "Adds a Live Camera app to the Smartphone framework. Place virtual cameras at any location and view a live feed from the comfort of your phone.",
+  "UniqueID": "d5a1lamdtd.Smartphone-LiveCamera",
+  "EntryDll": "Smartphone-LiveCamera.dll",
+  "MinimumApiVersion": "4.0.0",
+  "Dependencies": [
+    {
+      "UniqueID": "d5a1lamdtd.Smartphone",
+      "IsRequired": true
+    }
+  ]
+}

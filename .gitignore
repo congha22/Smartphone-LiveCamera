@@ -1,0 +1,9 @@
+.vs/
+bin/
+obj/
+.env
+.env.local
+.env.*
+.editorconfig
+!.env.example
+Generated/
