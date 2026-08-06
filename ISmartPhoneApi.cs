@@ -121,5 +121,19 @@ namespace SmartphoneLiveCamera.Data
         bool IsHudPinned();
         void SetHudPinned(bool pinned);
         string? GetPinnedAppId();
+
+        /// <summary>
+        /// Registers an interactive overlay panel drawn adjacent to the HUD phone icon slider.
+        /// Only visible while the HUD is active and the user hovers over the icon, slider, or overlay.
+        /// </summary>
+        bool RegisterPassiveHudOverlay(
+            string ownerModId,
+            string appId,
+            Action<SpriteBatch, Rectangle> onDrawHudOverlay,
+            Func<int, int, bool>? onLeftClick = null,
+            Action<int, int>? onLeftClickHeld = null,
+            Action? onReleaseLeftClick = null,
+            Func<int>? getOverlayHeight = null
+        );
     }
 }

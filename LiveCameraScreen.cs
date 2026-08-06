@@ -41,6 +41,36 @@ namespace SmartphoneLiveCamera
         private bool liveFeedHasFrame = false;
         private bool liveFeedCapturing = false;
 
+        // Controller-accessible state
+        private float zoomLevel = 1f;
+        private bool flashEnabled = false;
+        private double captureFlashRemainingSeconds = 0.0;
+        private const double CaptureFlashDurationSeconds = 0.45;
+        private const float CaptureFlashMaxOpacity = 0.85f;
+        private const float ZoomMin = 0.5f;
+        private const float ZoomMax = 2.0f;
+        private const float ZoomStep = 0.05f;
+
+        /// <summary>Current zoom level for the live feed (0.5x – 2.0x).</summary>
+        public float ZoomLevel
+        {
+            get => zoomLevel;
+            set => zoomLevel = Math.Clamp(value, ZoomMin, ZoomMax);
+        }
+
+        /// <summary>Whether flash light fires when a photo is captured.</summary>
+        public bool FlashEnabled
+        {
+            get => flashEnabled;
+            set => flashEnabled = value;
+        }
+
+        /// <summary>The camera entry currently shown in live view, or null.</summary>
+        public CameraEntry? ActiveCamera => activeCameraEntry;
+
+        /// <summary>True while the live camera view is active.</summary>
+        public bool IsLiveViewActive => currentView == View.Live;
+
         private float phoneUiScale;
         private int phoneFrameWidth;
         private int phoneFrameHeight;
@@ -174,6 +204,9 @@ namespace SmartphoneLiveCamera
                 liveFeedTimer -= time.ElapsedGameTime.TotalSeconds;
                 if (liveFeedTimer <= 0) { liveFeedTimer = LiveFeedRefreshSeconds; TryCaptureFrame(); }
             }
+            // Count down capture flash
+            if (captureFlashRemainingSeconds > 0.0)
+                captureFlashRemainingSeconds = Math.Max(0.0, captureFlashRemainingSeconds - time.ElapsedGameTime.TotalSeconds);
         }
 
         private void TryCaptureFrame()
@@ -182,8 +215,44 @@ namespace SmartphoneLiveCamera
             GameLocation? loc = Game1.getLocationFromName(activeCameraEntry.LocationName);
             if (loc == null) { ModEntry.SMonitor?.Log($"LiveCamera: location '{activeCameraEntry.LocationName}' not found", StardewModdingAPI.LogLevel.Trace); return; }
             liveFeedCapturing = true;
-            try { if (api.CaptureLiveFeedFrame(loc, activeCameraEntry.TilePosition, liveFeedTarget)) liveFeedHasFrame = true; }
+            try { if (api.CaptureLiveFeedFrame(loc, activeCameraEntry.TilePosition, liveFeedTarget, zoomLevel)) liveFeedHasFrame = true; }
             finally { liveFeedCapturing = false; }
+        }
+
+        /// <summary>
+        /// Requests a photo capture of the active camera. Triggers flash if enabled.
+        /// </summary>
+        public void RequestPhotoCapture()
+        {
+            if (activeCameraEntry == null) return;
+            GameLocation? loc = Game1.getLocationFromName(activeCameraEntry.LocationName);
+            if (loc == null) return;
+
+            string savedPath = api.CaptureNpcPhoto(
+                targetLocation: loc,
+                captureCenter:  activeCameraEntry.TilePosition,
+                landscape:      true,
+                zoomLevel:      zoomLevel);
+
+            captureFlashRemainingSeconds = CaptureFlashDurationSeconds;
+            Game1.playSound("cameraNoise");
+
+            if (flashEnabled)
+            {
+                // Trigger a brief world light at the camera position
+                Vector2 lightPos = activeCameraEntry.TilePosition * Game1.tileSize + new Vector2(Game1.tileSize / 2f);
+                string lightId = $"SmartphoneLiveCamera_Flash_{System.Guid.NewGuid():N}";
+                if (loc != null)
+                {
+                    Game1.currentLightSources[lightId] = new LightSource(
+                        lightId, 4, lightPos, 3f,
+                        LightSource.LightContext.MapLight, 0L, loc.NameOrUniqueName);
+                    StardewValley.DelayedAction.functionAfterDelay(() => Game1.currentLightSources.Remove(lightId), 450);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(savedPath))
+                Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
         }
 
         public override void draw(SpriteBatch b)
@@ -310,6 +379,15 @@ namespace SmartphoneLiveCamera
             int barH = Scale(3); float frac = Math.Clamp((float)(1.0 - liveFeedTimer / LiveFeedRefreshSeconds), 0f, 1f);
             b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Bottom - barH, lc.Width, barH), ColorBorder);
             b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Bottom - barH, (int)(lc.Width * frac), barH), ColorAccent * 0.8f);
+
+            // Capture flash overlay
+            if (captureFlashRemainingSeconds > 0.0 && CaptureFlashDurationSeconds > 0.0)
+            {
+                float progress = (float)(captureFlashRemainingSeconds / CaptureFlashDurationSeconds);
+                float opacity = CaptureFlashMaxOpacity * progress * progress;
+                if (opacity > 0f)
+                    b.Draw(Game1.staminaRect, lc, Color.White * opacity);
+            }
         }
 
         public void DrawScreenContent(SpriteBatch b, Rectangle dest)

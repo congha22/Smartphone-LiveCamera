@@ -32,6 +32,7 @@ namespace SmartphoneLiveCamera
         internal static IMonitor? SMonitor;
 
         private LiveCameraScreen? activeScreen;
+        private LiveCameraControllerHud? controllerHud;
 
         private List<CameraEntry> cameras = new();
         private string? cameraSaveFilePath;
@@ -86,12 +87,26 @@ namespace SmartphoneLiveCamera
                 Monitor.Log("Failed to register Live Camera app.", LogLevel.Warn);
             else
             {
+                // Register passive HUD screen callback (draws live feed inside phone frame)
                 smartphoneApi.RegisterPassiveHudCallback(
                     ownerModId:        ModManifest.UniqueID,
                     appId:             LiveCameraAppId,
                     onDrawHudScreen:   DrawPassiveHud,
                     onUpdateHudScreen: UpdatePassiveHud,
                     landscape:         true);
+
+                // Register interactive controller overlay (joystick + buttons beside slider).
+                // The controller references the screen lazily via a Func so it always
+                // sees the most-recently-created screen even if OpenApp() rebuilds it.
+                controllerHud = new LiveCameraControllerHud(() => activeScreen);
+                smartphoneApi.RegisterPassiveHudOverlay(
+                    ownerModId:          ModManifest.UniqueID,
+                    appId:               LiveCameraAppId,
+                    onDrawHudOverlay:    (b, dest) => controllerHud.Draw(b, dest),
+                    onLeftClick:         (x, y)   => controllerHud.OnLeftClick(x, y),
+                    onLeftClickHeld:     (x, y)   => controllerHud.OnLeftClickHeld(x, y),
+                    onReleaseLeftClick:  ()        => { controllerHud.OnReleaseLeftClick(); SaveCameras(); },
+                    getOverlayHeight:    ()        => controllerHud.GetOverlayHeight());
             }
         }
 
