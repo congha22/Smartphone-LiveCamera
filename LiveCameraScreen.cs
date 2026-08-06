@@ -15,7 +15,6 @@ namespace SmartphoneLiveCamera
 {
     public class LiveCameraScreen : IClickableMenu
     {
-        private const double LiveFeedRefreshSeconds = 0.5;
         private static readonly Color ColorBackground = new Color(12, 14, 22);
         private static readonly Color ColorCard = new Color(28, 34, 52);
         private static readonly Color ColorCardHover = new Color(40, 50, 78);
@@ -37,7 +36,7 @@ namespace SmartphoneLiveCamera
         private CameraEntry? activeCameraEntry;
 
         private RenderTarget2D? liveFeedTarget;
-        private double liveFeedTimer = LiveFeedRefreshSeconds;
+        private double liveFeedTimer = 0.0;
         private bool liveFeedHasFrame = false;
         private bool liveFeedCapturing = false;
 
@@ -209,6 +208,14 @@ namespace SmartphoneLiveCamera
                 captureFlashRemainingSeconds = Math.Max(0.0, captureFlashRemainingSeconds - time.ElapsedGameTime.TotalSeconds);
         }
 
+        /// <summary>
+        /// Instantly resets the live feed update timer to 0, forcing an immediate frame refresh.
+        /// </summary>
+        public void ForceImmediateFrameRefresh()
+        {
+            liveFeedTimer = 0.0;
+        }
+
         private void TryCaptureFrame()
         {
             if (liveFeedTarget == null || liveFeedTarget.IsDisposed || activeCameraEntry == null) return;
@@ -339,6 +346,8 @@ namespace SmartphoneLiveCamera
             }
         }
 
+        private double LiveFeedRefreshSeconds => ModEntry.Config.CaptureRateSeconds;
+
         private void DrawLiveView(SpriteBatch b, Rectangle lc)
         {
             SpriteFont font = Game1.dialogueFont;
@@ -346,6 +355,7 @@ namespace SmartphoneLiveCamera
             {
                 b.Draw(Game1.staminaRect, lc, Color.Black);
                 b.Draw(liveFeedTarget, lc, Color.White);
+                DrawCctvOverlay(b, lc);
             }
             else
             {
@@ -354,18 +364,6 @@ namespace SmartphoneLiveCamera
                 Vector2 lSz = font.MeasureString(loadStr) * ls;
                 b.DrawString(font, loadStr, new Vector2(lc.Center.X - lSz.X / 2f, lc.Center.Y - lSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ls, SpriteEffects.None, 1f);
             }
-            int hudH = Scale(28);
-            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y, lc.Width, hudH), Color.Black * 0.65f);
-            string name = activeCameraEntry?.Name ?? "Unknown"; float nts = 0.33f * phoneUiScale;
-            b.DrawString(font, name, new Vector2(lc.X + Scale(8), lc.Y + Scale(6)), ColorText, 0f, Vector2.Zero, nts, SpriteEffects.None, 1f);
-            double pulse = Math.Sin(Game1.currentGameTime.TotalGameTime.TotalSeconds * 3.0) * 0.3 + 0.7;
-            Color liveCol = ColorAccent * (float)pulse;
-            int dotSz = Scale(8); int dotX = lc.Right - Scale(60); int dotY = lc.Y + (hudH - dotSz) / 2;
-            b.Draw(Game1.staminaRect, new Rectangle(dotX, dotY, dotSz, dotSz), liveCol);
-            b.DrawString(font, "LIVE", new Vector2(dotX + dotSz + Scale(4), lc.Y + Scale(7)), liveCol, 0f, Vector2.Zero, 0.28f * phoneUiScale, SpriteEffects.None, 1f);
-            int barH = Scale(3); float frac = Math.Clamp((float)(1.0 - liveFeedTimer / LiveFeedRefreshSeconds), 0f, 1f);
-            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Bottom - barH, lc.Width, barH), ColorBorder);
-            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Bottom - barH, (int)(lc.Width * frac), barH), ColorAccent * 0.8f);
 
             // Capture flash overlay
             if (captureFlashRemainingSeconds > 0.0 && CaptureFlashDurationSeconds > 0.0)
@@ -377,12 +375,93 @@ namespace SmartphoneLiveCamera
             }
         }
 
+        private void DrawCctvOverlay(SpriteBatch b, Rectangle lc)
+        {
+            if (activeCameraEntry == null) return;
+            SpriteFont font = Game1.dialogueFont;
+
+            // --- Top-Left: Radial LIVE progress circle (2x enlarged, electric blue) ---
+            int circleR = Scale(32);
+            int circleX = lc.X + circleR + Scale(12);
+            int circleY = lc.Y + circleR + Scale(12);
+            float refreshSecs = (float)Math.Max(0.1, LiveFeedRefreshSeconds);
+            float progress = Math.Clamp((float)(1.0 - (liveFeedTimer / refreshSecs)), 0f, 1f);
+
+            DrawRadialCircleBadge(b, circleX, circleY, circleR, progress, "LIVE", font, 0.48f * phoneUiScale);
+
+            // --- Bottom-Left: 2 lines (target location display name & timestamp, 2x enlarged) ---
+            GameLocation? loc = Game1.getLocationFromName(activeCameraEntry.LocationName);
+            string locDisplayName = loc?.DisplayName ?? activeCameraEntry.LocationName;
+            if (string.IsNullOrWhiteSpace(locDisplayName)) locDisplayName = activeCameraEntry.Name;
+
+            string timeStr = Game1.getTimeOfDayString(Game1.timeOfDay);
+            string dateStr = $"Yr {Game1.year}, {Utility.capitalizeFirstLetter(Game1.currentSeason ?? "Spring")} {Game1.dayOfMonth}  {timeStr}";
+
+            float line1Scale = 0.64f * phoneUiScale;
+            float line2Scale = 0.56f * phoneUiScale;
+            int margin = Scale(12);
+            Vector2 sz1 = font.MeasureString(locDisplayName) * line1Scale;
+            Vector2 sz2 = font.MeasureString(dateStr) * line2Scale;
+            float maxW = Math.Max(sz1.X, sz2.X);
+            int bannerH = Scale(62);
+
+            Rectangle bannerRect = new Rectangle(lc.X + margin - Scale(4), lc.Bottom - margin - bannerH, (int)maxW + Scale(16), bannerH);
+            b.Draw(Game1.staminaRect, bannerRect, Color.Black * 0.55f);
+
+            b.DrawString(font, locDisplayName, new Vector2(bannerRect.X + Scale(6), bannerRect.Y + Scale(4)), Color.White, 0f, Vector2.Zero, line1Scale, SpriteEffects.None, 1f);
+            b.DrawString(font, dateStr, new Vector2(bannerRect.X + Scale(6), bannerRect.Y + Scale(32)), new Color(220, 230, 180), 0f, Vector2.Zero, line2Scale, SpriteEffects.None, 1f);
+        }
+
+        private static void DrawRadialCircleBadge(SpriteBatch b, int cx, int cy, int radius, float progress, string label, SpriteFont font, float fontScale)
+        {
+            // Dark background circle
+            DrawFilledCircle(b, cx, cy, radius, Color.Black * 0.60f);
+
+            // Radial arc steps
+            int steps = 64;
+            Color bgArcCol = new Color(30, 90, 160) * 0.45f;
+            Color activeArcCol = new Color(60, 175, 255);
+
+            for (int i = 0; i < steps; i++)
+            {
+                float stepFrac = i / (float)steps;
+                float angle = -MathHelper.PiOver2 + stepFrac * MathHelper.TwoPi;
+                int rx = cx + (int)MathF.Round((radius - 1) * MathF.Cos(angle));
+                int ry = cy + (int)MathF.Round((radius - 1) * MathF.Sin(angle));
+                bool isActive = stepFrac <= progress;
+                Color col = isActive ? activeArcCol : bgArcCol;
+                b.Draw(Game1.staminaRect, new Rectangle(rx - 1, ry - 1, 3, 3), col);
+            }
+
+            // Inner text "LIVE" (blue)
+            Vector2 sz = font.MeasureString(label) * fontScale;
+            Vector2 pos = new Vector2(cx - sz.X / 2f, cy - sz.Y / 2f);
+            b.DrawString(font, label, pos + new Vector2(1, 1), Color.Black * 0.7f, 0f, Vector2.Zero, fontScale, SpriteEffects.None, 1f);
+            b.DrawString(font, label, pos, activeArcCol, 0f, Vector2.Zero, fontScale, SpriteEffects.None, 1f);
+        }
+
+        private static void DrawFilledCircle(SpriteBatch b, int cx, int cy, int r, Color color)
+        {
+            if (r <= 0) return;
+            int rSq = r * r;
+            for (int dy = -r; dy <= r; dy++)
+            {
+                int dySq = dy * dy;
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    if (dx * dx + dySq <= rSq)
+                        b.Draw(Game1.staminaRect, new Rectangle(cx + dx, cy + dy, 1, 1), color);
+                }
+            }
+        }
+
         public void DrawScreenContent(SpriteBatch b, Rectangle dest)
         {
             if (currentView == View.Live && liveFeedHasFrame && liveFeedTarget != null && !liveFeedTarget.IsDisposed)
             {
                 b.Draw(Game1.staminaRect, dest, Color.Black);
                 b.Draw(liveFeedTarget, dest, Color.White);
+                DrawCctvOverlay(b, dest);
             }
             else { Texture2D? bg = api.GetPhoneBackgroundTexture(); if (bg != null && !bg.IsDisposed) b.Draw(bg, dest, Color.White); else b.Draw(Game1.staminaRect, dest, ColorBackground); }
         }

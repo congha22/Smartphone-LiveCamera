@@ -28,6 +28,9 @@ namespace SmartphoneLiveCamera
         // Fields
         // -------------------------------------------------------------------------
 
+        internal static ModConfig Config { get; private set; } = new();
+        internal static Action? SaveConfigCallback { get; private set; }
+
         private ISmartPhoneApi? smartphoneApi;
         internal static IMonitor? SMonitor;
 
@@ -46,6 +49,8 @@ namespace SmartphoneLiveCamera
         public override void Entry(IModHelper helper)
         {
             SMonitor = Monitor;
+            Config = helper.ReadConfig<ModConfig>();
+            SaveConfigCallback = () => helper.WriteConfig(Config);
 
             helper.Events.GameLoop.GameLaunched  += OnGameLaunched;
             helper.Events.GameLoop.SaveLoaded    += OnSaveLoaded;
@@ -59,6 +64,8 @@ namespace SmartphoneLiveCamera
 
         private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
         {
+            RegisterGmcm();
+
             smartphoneApi = Helper.ModRegistry.GetApi<ISmartPhoneApi>(SmartphoneModId);
 
             if (smartphoneApi == null)
@@ -108,6 +115,29 @@ namespace SmartphoneLiveCamera
                     onReleaseLeftClick:  ()        => { controllerHud.OnReleaseLeftClick(); SaveCameras(); },
                     getOverlayHeight:    ()        => controllerHud.GetOverlayHeight());
             }
+        }
+
+        private void RegisterGmcm()
+        {
+            var gmcm = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+            if (gmcm == null) return;
+
+            gmcm.Register(
+                mod: ModManifest,
+                reset: () => Config = new ModConfig(),
+                save: () => Helper.WriteConfig(Config)
+            );
+
+            gmcm.AddNumberOption(
+                mod: ModManifest,
+                getValue: () => Config.CaptureRateSeconds,
+                setValue: value => Config.CaptureRateSeconds = (float)Math.Round(value * 2f) / 2f,
+                name: () => "Capture Rate (seconds)",
+                tooltip: () => "Time interval in seconds between live camera feed updates (0.5s to 20.0s).",
+                min: 0.5f,
+                max: 20.0f,
+                interval: 0.5f
+            );
         }
 
         private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
