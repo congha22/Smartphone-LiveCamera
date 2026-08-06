@@ -16,16 +16,16 @@ namespace SmartphoneLiveCamera
     public class LiveCameraScreen : IClickableMenu
     {
         private const double LiveFeedRefreshSeconds = 0.5;
-        private static readonly Color ColorBackground  = new Color(12, 14, 22);
-        private static readonly Color ColorCard        = new Color(28, 34, 52);
-        private static readonly Color ColorCardHover   = new Color(40, 50, 78);
-        private static readonly Color ColorAccent      = new Color(80, 200, 140);
-        private static readonly Color ColorDanger      = new Color(220, 70, 70);
-        private static readonly Color ColorAddBtn      = new Color(50, 160, 110);
+        private static readonly Color ColorBackground = new Color(12, 14, 22);
+        private static readonly Color ColorCard = new Color(28, 34, 52);
+        private static readonly Color ColorCardHover = new Color(40, 50, 78);
+        private static readonly Color ColorAccent = new Color(80, 200, 140);
+        private static readonly Color ColorDanger = new Color(220, 70, 70);
+        private static readonly Color ColorAddBtn = new Color(50, 160, 110);
         private static readonly Color ColorAddBtnHover = new Color(70, 200, 140);
-        private static readonly Color ColorText        = new Color(220, 230, 240);
-        private static readonly Color ColorSubText     = new Color(140, 155, 175);
-        private static readonly Color ColorBorder      = new Color(50, 65, 95);
+        private static readonly Color ColorText = new Color(220, 230, 240);
+        private static readonly Color ColorSubText = new Color(140, 155, 175);
+        private static readonly Color ColorBorder = new Color(50, 65, 95);
 
         private enum View { List, Live }
         private View currentView = View.List;
@@ -102,31 +102,31 @@ namespace SmartphoneLiveCamera
         {
             this.api = api; this.onBack = onBack; this.cameras = cameras; this.saveCallback = saveCallback;
             var (px, py) = api.GetPhonePosition();
-            phoneFrameWidth  = api.GetPhoneFrameWidth();
+            phoneFrameWidth = api.GetPhoneFrameWidth();
             phoneFrameHeight = api.GetPhoneFrameHeight();
-            xPositionOnScreen = px + (phoneFrameWidth  - phoneFrameHeight) / 2;
-            yPositionOnScreen = py + (phoneFrameHeight - phoneFrameWidth)  / 2;
+            xPositionOnScreen = px + (phoneFrameWidth - phoneFrameHeight) / 2;
+            yPositionOnScreen = py + (phoneFrameHeight - phoneFrameWidth) / 2;
             RefreshLayout();
         }
 
         private void RefreshLayout()
         {
             phoneUiScale = api.GetPhoneUiScale();
-            phoneFrameWidth  = api.GetPhoneFrameWidth();
+            phoneFrameWidth = api.GetPhoneFrameWidth();
             phoneFrameHeight = api.GetPhoneFrameHeight();
             var (ox, oy) = api.GetPhoneContentOffset();
             phoneContentOffsetX = ox; phoneContentOffsetY = oy;
-            phoneFrameTexture      = api.GetPhoneFrameTexture();
+            phoneFrameTexture = api.GetPhoneFrameTexture();
             phoneBackgroundTexture = api.GetPhoneBackgroundTexture();
-            width  = phoneFrameHeight; height = phoneFrameWidth;
+            width = phoneFrameHeight; height = phoneFrameWidth;
             if (phoneBackgroundTexture != null && !phoneBackgroundTexture.IsDisposed)
             {
-                contentWidth  = (int)Math.Round(phoneBackgroundTexture.Width  * phoneUiScale);
+                contentWidth = (int)Math.Round(phoneBackgroundTexture.Width * phoneUiScale);
                 contentHeight = (int)Math.Round(phoneBackgroundTexture.Height * phoneUiScale);
             }
             else
             {
-                contentWidth  = Math.Max(1, phoneFrameWidth  - phoneContentOffsetX * 2);
+                contentWidth = Math.Max(1, phoneFrameWidth - phoneContentOffsetX * 2);
                 contentHeight = Math.Max(1, phoneFrameHeight - phoneContentOffsetY - Scale(80));
             }
             RebuildListLayout();
@@ -137,8 +137,8 @@ namespace SmartphoneLiveCamera
 
         private void SyncPortraitPosition()
         {
-            int px = xPositionOnScreen - (phoneFrameWidth  - phoneFrameHeight) / 2;
-            int py = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth)  / 2;
+            int px = xPositionOnScreen - (phoneFrameWidth - phoneFrameHeight) / 2;
+            int py = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth) / 2;
             api.SetPhonePosition(px, py);
         }
 
@@ -185,10 +185,10 @@ namespace SmartphoneLiveCamera
             if (Math.Abs(cur - phoneUiScale) > 0.001f)
             {
                 int cx = xPositionOnScreen + phoneFrameHeight / 2;
-                int cy = yPositionOnScreen + phoneFrameWidth  / 2;
+                int cy = yPositionOnScreen + phoneFrameWidth / 2;
                 phoneUiScale = cur; RefreshLayout();
                 xPositionOnScreen = cx - phoneFrameHeight / 2;
-                yPositionOnScreen = cy - phoneFrameWidth  / 2;
+                yPositionOnScreen = cy - phoneFrameWidth / 2;
                 SyncPortraitPosition();
             }
             base.update(time);
@@ -215,7 +215,7 @@ namespace SmartphoneLiveCamera
             GameLocation? loc = Game1.getLocationFromName(activeCameraEntry.LocationName);
             if (loc == null) { ModEntry.SMonitor?.Log($"LiveCamera: location '{activeCameraEntry.LocationName}' not found", StardewModdingAPI.LogLevel.Trace); return; }
             liveFeedCapturing = true;
-            try { if (api.CaptureLiveFeedFrame(loc, activeCameraEntry.TilePosition, liveFeedTarget, zoomLevel)) liveFeedHasFrame = true; }
+            try { if (api.CaptureLiveFeedFrame(loc, activeCameraEntry.TilePosition, liveFeedTarget, zoomLevel, flashEnabled)) liveFeedHasFrame = true; }
             finally { liveFeedCapturing = false; }
         }
 
@@ -232,24 +232,11 @@ namespace SmartphoneLiveCamera
                 targetLocation: loc,
                 captureCenter:  activeCameraEntry.TilePosition,
                 landscape:      true,
-                zoomLevel:      zoomLevel);
+                zoomLevel:      zoomLevel,
+                forceFlash:     flashEnabled);
 
             captureFlashRemainingSeconds = CaptureFlashDurationSeconds;
             Game1.playSound("cameraNoise");
-
-            if (flashEnabled)
-            {
-                // Trigger a brief world light at the camera position
-                Vector2 lightPos = activeCameraEntry.TilePosition * Game1.tileSize + new Vector2(Game1.tileSize / 2f);
-                string lightId = $"SmartphoneLiveCamera_Flash_{System.Guid.NewGuid():N}";
-                if (loc != null)
-                {
-                    Game1.currentLightSources[lightId] = new LightSource(
-                        lightId, 4, lightPos, 3f,
-                        LightSource.LightContext.MapLight, 0L, loc.NameOrUniqueName);
-                    StardewValley.DelayedAction.functionAfterDelay(() => Game1.currentLightSources.Remove(lightId), 450);
-                }
-            }
 
             if (!string.IsNullOrEmpty(savedPath))
                 Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
@@ -262,7 +249,7 @@ namespace SmartphoneLiveCamera
             int lx = lc.X; int ly = lc.Y; int lw = lc.Width; int lh = lc.Height;
             if (phoneBackgroundTexture != null && !phoneBackgroundTexture.IsDisposed)
             {
-                float sx = (float)contentWidth  / phoneBackgroundTexture.Width;
+                float sx = (float)contentWidth / phoneBackgroundTexture.Width;
                 float sy = (float)contentHeight / phoneBackgroundTexture.Height;
                 b.Draw(phoneBackgroundTexture, new Vector2(lx, ly + lh), null, Color.White,
                        -MathHelper.PiOver2, Vector2.Zero, new Vector2(sx, sy), SpriteEffects.None, 0f);
@@ -284,7 +271,7 @@ namespace SmartphoneLiveCamera
 
             if (phoneFrameTexture != null && !phoneFrameTexture.IsDisposed)
             {
-                float sx = (float)phoneFrameWidth  / phoneFrameTexture.Width;
+                float sx = (float)phoneFrameWidth / phoneFrameTexture.Width;
                 float sy = (float)phoneFrameHeight / phoneFrameTexture.Height;
                 b.Draw(phoneFrameTexture, new Vector2(xPositionOnScreen, yPositionOnScreen + phoneFrameWidth),
                        null, Color.White, -MathHelper.PiOver2, Vector2.Zero, new Vector2(sx, sy), SpriteEffects.None, 0f);
@@ -327,7 +314,7 @@ namespace SmartphoneLiveCamera
                 b.Draw(Game1.staminaRect, deleteRect, delHov ? ColorDanger : new Color(80, 30, 30));
                 float dts = 0.30f * phoneUiScale;
                 Vector2 dSz = font.MeasureString("X") * dts;
-                b.DrawString(font, "X", new Vector2(deleteRect.Center.X - dSz.X/2f, deleteRect.Center.Y - dSz.Y/2f), Color.White, 0f, Vector2.Zero, dts, SpriteEffects.None, 1f);
+                b.DrawString(font, "X", new Vector2(deleteRect.Center.X - dSz.X / 2f, deleteRect.Center.Y - dSz.Y / 2f), Color.White, 0f, Vector2.Zero, dts, SpriteEffects.None, 1f);
                 b.Draw(Game1.staminaRect, new Rectangle(cardRect.X, cardRect.Bottom - Scale(1), cardRect.Width, Scale(1)), ColorBorder * 0.4f);
             }
 
@@ -341,14 +328,14 @@ namespace SmartphoneLiveCamera
                 b.Draw(Game1.staminaRect, new Rectangle(addBtnRect.Right - Scale(2), addBtnRect.Y, Scale(2), addBtnRect.Height), ColorAddBtn);
                 string addStr = "+ Add Camera at Current Location"; float ats = 0.36f * phoneUiScale;
                 Vector2 aSz = font.MeasureString(addStr) * ats;
-                b.DrawString(font, addStr, new Vector2(addBtnRect.Center.X - aSz.X/2f, addBtnRect.Center.Y - aSz.Y/2f), Color.White, 0f, Vector2.Zero, ats, SpriteEffects.None, 1f);
+                b.DrawString(font, addStr, new Vector2(addBtnRect.Center.X - aSz.X / 2f, addBtnRect.Center.Y - aSz.Y / 2f), Color.White, 0f, Vector2.Zero, ats, SpriteEffects.None, 1f);
             }
 
             if (cameras.Count == 0)
             {
                 string emptyStr = "No cameras placed yet."; float ets = 0.36f * phoneUiScale;
                 Vector2 eSz = font.MeasureString(emptyStr) * ets;
-                b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X/2f, lc.Y + Scale(80) - eSz.Y/2f), ColorSubText, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
+                b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X / 2f, lc.Y + Scale(80) - eSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
             }
         }
 
@@ -365,7 +352,7 @@ namespace SmartphoneLiveCamera
                 b.Draw(Game1.staminaRect, lc, ColorBackground);
                 string loadStr = "Loading feed..."; float ls = 0.40f * phoneUiScale;
                 Vector2 lSz = font.MeasureString(loadStr) * ls;
-                b.DrawString(font, loadStr, new Vector2(lc.Center.X - lSz.X/2f, lc.Center.Y - lSz.Y/2f), ColorSubText, 0f, Vector2.Zero, ls, SpriteEffects.None, 1f);
+                b.DrawString(font, loadStr, new Vector2(lc.Center.X - lSz.X / 2f, lc.Center.Y - lSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ls, SpriteEffects.None, 1f);
             }
             int hudH = Scale(28);
             b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y, lc.Width, hudH), Color.Black * 0.65f);
@@ -405,15 +392,15 @@ namespace SmartphoneLiveCamera
             if (key == Keys.Escape) { if (currentView == View.Live) GoToList(); else onBack?.Invoke(); return; }
             string ks = key.ToString();
             if (ks == api.GetDecreaseSizeKey()) { api.AdjustPhoneSize(-0.1f); return; }
-            if (ks == api.GetIncreaseSizeKey()) { api.AdjustPhoneSize(0.1f);  return; }
+            if (ks == api.GetIncreaseSizeKey()) { api.AdjustPhoneSize(0.1f); return; }
             base.receiveKeyPress(key);
         }
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
             LandscapeToPortraitClick(x, y, out int px, out int py);
-            int pox = xPositionOnScreen - (phoneFrameWidth  - phoneFrameHeight) / 2;
-            int poy = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth)  / 2;
+            int pox = xPositionOnScreen - (phoneFrameWidth - phoneFrameHeight) / 2;
+            int poy = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth) / 2;
             if (api.HandlePhoneAppBottomNavClick(px, py, pox, poy, onBack: currentView == View.Live ? (Action)GoToList : onBack)) return;
             if (api.HandlePhoneSizeButtonsClick(px, py, pox, poy)) return;
             scrollStartY = y; lastScrollMouseY = y; hasScrolled = false; isScrolling = false;
@@ -464,7 +451,7 @@ namespace SmartphoneLiveCamera
             {
                 var (cardRect, deleteRect, _) = cardRects[i];
                 if (deleteRect.Contains(x, y)) { hoveredDeleteBtn = i; return; }
-                if (cardRect.Contains(x, y))   { hoveredCard = i; return; }
+                if (cardRect.Contains(x, y)) { hoveredCard = i; return; }
             }
             if (addBtnRect.Contains(x, y)) addBtnHover = true;
         }
@@ -499,8 +486,8 @@ namespace SmartphoneLiveCamera
 
         private void LandscapeToPortraitClick(int cx, int cy, out int px, out int py)
         {
-            int pox = xPositionOnScreen - (phoneFrameWidth  - phoneFrameHeight) / 2;
-            int poy = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth)  / 2;
+            int pox = xPositionOnScreen - (phoneFrameWidth - phoneFrameHeight) / 2;
+            int poy = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth) / 2;
             px = pox + (yPositionOnScreen + phoneFrameWidth - cy);
             py = poy + (cx - xPositionOnScreen);
         }

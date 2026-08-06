@@ -98,13 +98,13 @@ namespace SmartphoneLiveCamera.Data
 
         string CaptureNpcPhoto(GameLocation targetLocation, Vector2 captureCenter, NPC npc = null,
             bool landscape = false, bool square = false, List<NPC>? visibleNpcAtTarget = null,
-            float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null);
+            float zoomLevel = 1f, int? captureTimeOfDay = null, string saveLocation = null, bool forceFlash = false);
 
         /// <summary>
         /// Renders targetLocation centred on captureCenter into an existing renderTarget without saving to disk.
         /// Intended for low-frequency live-feed rendering (e.g. 1 frame every 3 seconds).
         /// </summary>
-        bool CaptureLiveFeedFrame(GameLocation targetLocation, Vector2 captureCenter, RenderTarget2D renderTarget, float zoomLevel = 1f);
+        bool CaptureLiveFeedFrame(GameLocation targetLocation, Vector2 captureCenter, RenderTarget2D renderTarget, float zoomLevel = 1f, bool forceFlash = false);
 
         Texture2D GetPlayerPhotoTexture(string photoName);
         string GetPlayerPhotoMetadata(string photoName);
