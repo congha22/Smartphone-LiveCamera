@@ -1,14 +1,16 @@
 // =============================================================================
 // LiveCameraControllerHud.cs  --  HUD Overlay Camera Controller for Live Camera
 // =============================================================================
-// Renders a compact, square controller panel matching the phone HUD style:
-//   - Faded black background with crisp white elements
+// Futuristic CCTV-styled HUD controller overlay:
+//   - Dark glassmorphism chassis with electric blue glow
+//   - 1:1 Square main controller panel (96x96) with height-matched vertical slider
+//   - Enlarged 32px circular glass pill buttons with cyan accent highlights
 //   - Top-left  [-] : zoom out (widen capture area)
 //   - Top-right [+] : zoom in  (narrow capture area)
-//   - Centre       : 2-circle joystick to pan tile position
+//   - Centre       : Directional crosshair joystick to pan tile position
 //   - Bottom-left  [Flash] : toggle camera flash light
 //   - Bottom-right [Shutter] : capture photo
-//   - Right side   : Vertical capture rate slider (inside overlay bounds)
+//   - Right side   : Vertical capture rate slider with glowing electric blue track
 // =============================================================================
 
 using System;
@@ -20,42 +22,44 @@ namespace SmartphoneLiveCamera
 {
     /// <summary>
     /// Interactive HUD overlay controller panel for the Live Camera app.
-    /// Styled to match the Phone HUD size slider (faded black background, white elements).
+    /// Futuristic dark glassmorphism design with electric blue CCTV accents.
+    /// Main controller panel is structured as a 1:1 square with enlarged 32px buttons.
     /// </summary>
     internal sealed class LiveCameraControllerHud
     {
         // -----------------------------------------------------------------------
         // Layout
         // -----------------------------------------------------------------------
-        private const int PanelHeight      = 132;
-        private const int CornerBtnSize    = 28;
-        private const int CornerBtnPadding = 5;
-        private const int OuterRadius      = 22;
-        private const int InnerRadius      = 9;
-        private const int JoystickMaxDrift = 14;
+        private const int PanelHeight      = 100; // Panel height for 1:1 square main area
+        private const int CornerBtnSize    = 32; // Enlarged corner buttons (from 25 to 32)
+        private const int CornerBtnPadding = 3;
+        private const int OuterRadius      = 17;
+        private const int InnerRadius      = 8;
+        private const int JoystickMaxDrift = 11;
 
         // How fast (tile units per pixel per held-frame tick) the camera pans
         private const float PanTilesPerPixelPerTick = 0.0018f;
 
         // -----------------------------------------------------------------------
-        // Faded Black + White Theme Colors (Matching Phone HUD Size Slider)
+        // Electric CCTV Glassmorphism Palette
         // -----------------------------------------------------------------------
-        private static readonly Color ColPanelBg     = Color.Black * 0.65f;
-        private static readonly Color ColPanelBorder = Color.White * 0.30f;
-        private static readonly Color ColBtnNormal   = Color.Black * 0.45f;
-        private static readonly Color ColBtnHover    = Color.White * 0.25f;
-        private static readonly Color ColBtnBorder   = Color.White * 0.35f;
-        private static readonly Color ColIconNormal  = Color.White * 0.95f;
-        private static readonly Color ColFlashActive = Color.White * 0.88f;
-        private static readonly Color ColJoystickRim = Color.White * 0.35f;
-        private static readonly Color ColJoystickBg  = Color.Black * 0.50f;
-        private static readonly Color ColJoystickKnob= Color.White * 0.90f;
+        private static readonly Color ColChassisBg     = new Color(10, 14, 24) * 0.88f;
+        private static readonly Color ColChassisBorder = new Color(60, 175, 255) * 0.45f;
+        private static readonly Color ColBtnBgNormal   = new Color(20, 28, 44) * 0.90f;
+        private static readonly Color ColBtnBgHover    = new Color(40, 140, 220) * 0.65f;
+        private static readonly Color ColBtnBorder     = new Color(60, 175, 255) * 0.45f;
+        private static readonly Color ColBtnBorderHov  = new Color(100, 210, 255);
+        private static readonly Color ColIconNormal    = new Color(240, 248, 255);
+        private static readonly Color ColFlashActive   = new Color(255, 215, 0); // Golden yellow
+        private static readonly Color ColJoystickRing  = new Color(60, 175, 255) * 0.65f;
+        private static readonly Color ColJoystickBg    = new Color(12, 18, 30) * 0.92f;
+        private static readonly Color ColJoystickKnob  = new Color(220, 240, 255);
+        private static readonly Color ColJoystickDot   = new Color(60, 175, 255);
+        private static readonly Color ColAccentBlue    = new Color(60, 175, 255);
         private static readonly Color ColText        = Color.White * 0.95f;
 
         // Mouse Cursor Icon Sources (from Stardew Valley HelperCamera)
-        private static readonly Rectangle CameraZoomMinusIconSource = new Rectangle(177, 345, 7, 8);
-        private static readonly Rectangle CameraZoomPlusIconSource  = new Rectangle(184, 345, 7, 8);
-        private static readonly Rectangle CameraFlashIconSource     = new Rectangle(193, 373, 9, 9);
+        private static readonly Rectangle CameraFlashIconSource = new Rectangle(193, 373, 9, 9);
 
         // -----------------------------------------------------------------------
         // State
@@ -100,15 +104,15 @@ namespace SmartphoneLiveCamera
             int mx = Game1.getMouseX(true);
             int my = Game1.getMouseY(true);
 
-            // Left square panel (96x128) inside dest (132x132)
-            destSquare = new Rectangle(dest.X + 2, dest.Y + 2, 96, dest.Height - 4);
+            // 1:1 Square main controller panel (96x96)
+            destSquare = new Rectangle(dest.X + 2, dest.Y + 2, 96, 96);
 
             // Draw square controller background panel & border
-            b.Draw(Game1.staminaRect, destSquare, ColPanelBg);
-            DrawBorder(b, destSquare, ColPanelBorder);
+            b.Draw(Game1.staminaRect, destSquare, ColChassisBg);
+            DrawBorder(b, destSquare, ColChassisBorder);
 
-            // Right vertical rate slider panel (28x128) inside dest (132x132)
-            boundsRateSlider = new Rectangle(dest.X + 101, dest.Y + 2, 29, dest.Height - 4);
+            // Right vertical rate slider panel (29x96) height-matched to main square
+            boundsRateSlider = new Rectangle(dest.X + 101, dest.Y + 2, 29, 96);
             rateTrackRect    = new Rectangle(boundsRateSlider.Center.X - 3, boundsRateSlider.Y + 10, 6, boundsRateSlider.Height - 20);
 
             if (screen == null || !screen.IsLiveViewActive)
@@ -125,8 +129,8 @@ namespace SmartphoneLiveCamera
             }
 
             // --- Layout buttons & joystick ---
-            int btnSz = CornerBtnSize; // 28
-            int pad   = CornerBtnPadding; // 5
+            int btnSz = CornerBtnSize; // 32
+            int pad   = CornerBtnPadding; // 3
 
             boundsZoomOut = new Rectangle(destSquare.X + pad,              destSquare.Y + pad,              btnSz, btnSz);
             boundsZoomIn  = new Rectangle(destSquare.Right - pad - btnSz,  destSquare.Y + pad,              btnSz, btnSz);
@@ -142,9 +146,9 @@ namespace SmartphoneLiveCamera
                 OuterRadius * 2);
 
             // Draw elements
-            DrawIconButton(b, boundsZoomOut, CameraZoomMinusIconSource, mx, my);
-            DrawIconButton(b, boundsZoomIn,  CameraZoomPlusIconSource,  mx, my);
-            DrawFlashButton(b, boundsFlash, screen.FlashEnabled, mx, my);
+            DrawZoomOutButton(b, boundsZoomOut, mx, my);
+            DrawZoomInButton(b,  boundsZoomIn,  mx, my);
+            DrawFlashButton(b,   boundsFlash, screen.FlashEnabled, mx, my);
             DrawCaptureButton(b, boundsCapture, mx, my);
             DrawJoystick(b);
             DrawRateSlider(b, mx, my);
@@ -156,36 +160,39 @@ namespace SmartphoneLiveCamera
         private void DrawRateSlider(SpriteBatch b, int mx, int my)
         {
             // Panel background & border
-            b.Draw(Game1.staminaRect, boundsRateSlider, ColPanelBg);
-            DrawBorder(b, boundsRateSlider, ColPanelBorder);
+            b.Draw(Game1.staminaRect, boundsRateSlider, ColChassisBg);
+            DrawBorder(b, boundsRateSlider, ColChassisBorder);
 
             float rate = ModEntry.Config.CaptureRateSeconds;
             float frac = Math.Clamp((rate - 0.25f) / 19.75f, 0f, 1f);
 
             // Track background
-            b.Draw(Game1.staminaRect, rateTrackRect, Color.Black * 0.50f);
-            DrawBorder(b, rateTrackRect, ColPanelBorder * 0.8f);
+            b.Draw(Game1.staminaRect, rateTrackRect, Color.Black * 0.60f);
+            DrawBorder(b, rateTrackRect, ColChassisBorder * 0.7f);
 
-            // Active track fill
+            // Active track fill (Electric Blue)
             int knobY = rateTrackRect.Y + (int)MathF.Round(frac * rateTrackRect.Height);
             Rectangle activeFill = new Rectangle(rateTrackRect.X, rateTrackRect.Y, rateTrackRect.Width, Math.Max(1, knobY - rateTrackRect.Y));
-            b.Draw(Game1.staminaRect, activeFill, Color.White * 0.75f);
+            b.Draw(Game1.staminaRect, activeFill, ColAccentBlue * 0.85f);
 
             // Knob
-            int knobW = 20;
-            int knobH = 10;
+            int knobW = 18;
+            int knobH = 9;
             Rectangle knobRect = new Rectangle(boundsRateSlider.Center.X - knobW / 2, knobY - knobH / 2, knobW, knobH);
             bool isHov = boundsRateSlider.Contains(mx, my) || rateSliderHeld;
-            Color knobCol = isHov ? Color.White : Color.White * 0.88f;
+            Color knobCol = isHov ? Color.White : ColJoystickKnob;
             b.Draw(Game1.staminaRect, knobRect, knobCol);
-            DrawBorder(b, knobRect, isHov ? Color.White : ColPanelBorder);
+            DrawBorder(b, knobRect, isHov ? ColAccentBlue : ColBtnBorder);
+
+            // Knob center accent line
+            b.Draw(Game1.staminaRect, new Rectangle(knobRect.X + 2, knobRect.Center.Y, knobRect.Width - 4, 1), ColAccentBlue);
 
             // Tooltip text showing current rate (rendered inside rate slider panel)
             if (isHov)
             {
                 SpriteFont font = Game1.smallFont;
                 string label = $"{rate:0.##}s";
-                const float scale = 0.60f;
+                const float scale = 0.55f;
                 Vector2 sz = font.MeasureString(label) * scale;
                 Vector2 pos = new Vector2(boundsRateSlider.Center.X - sz.X / 2f, knobRect.Center.Y - sz.Y / 2f);
 
@@ -195,20 +202,28 @@ namespace SmartphoneLiveCamera
                 else
                     pos.Y = knobRect.Y - sz.Y - 2;
 
-                b.Draw(Game1.staminaRect, new Rectangle((int)pos.X - 2, (int)pos.Y - 1, (int)sz.X + 4, (int)sz.Y + 2), ColPanelBg);
-                DrawBorder(b, new Rectangle((int)pos.X - 2, (int)pos.Y - 1, (int)sz.X + 4, (int)sz.Y + 2), ColPanelBorder);
-                b.DrawString(font, label, pos, ColText, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                Rectangle lblBox = new Rectangle((int)pos.X - 3, (int)pos.Y - 1, (int)sz.X + 6, (int)sz.Y + 2);
+                b.Draw(Game1.staminaRect, lblBox, ColChassisBg);
+                DrawBorder(b, lblBox, ColAccentBlue);
+                b.DrawString(font, label, pos, ColAccentBlue, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
             }
         }
 
         // -----------------------------------------------------------------------
-        // Joystick drawing
+        // Joystick drawing (Directional Crosshair & Metallic Stick)
         // -----------------------------------------------------------------------
         private void DrawJoystick(SpriteBatch b)
         {
-            // Outer ring
-            DrawFilledCircle(b, joystickCenterX, joystickCenterY, OuterRadius,     ColJoystickRim);
+            // Outer ring base
+            DrawFilledCircle(b, joystickCenterX, joystickCenterY, OuterRadius,     ColJoystickRing);
             DrawFilledCircle(b, joystickCenterX, joystickCenterY, OuterRadius - 2, ColJoystickBg);
+
+            // Directional crosshair ticks (N, S, E, W)
+            Color tickCol = ColAccentBlue * 0.65f;
+            b.Draw(Game1.staminaRect, new Rectangle(joystickCenterX - 1, joystickCenterY - OuterRadius + 1, 2, 3), tickCol);
+            b.Draw(Game1.staminaRect, new Rectangle(joystickCenterX - 1, joystickCenterY + OuterRadius - 4, 2, 3), tickCol);
+            b.Draw(Game1.staminaRect, new Rectangle(joystickCenterX - OuterRadius + 1, joystickCenterY - 1, 3, 2), tickCol);
+            b.Draw(Game1.staminaRect, new Rectangle(joystickCenterX + OuterRadius - 4, joystickCenterY - 1, 3, 2), tickCol);
 
             // Clamp knob displacement
             float len  = MathF.Sqrt(joystickDx * joystickDx + joystickDy * joystickDy);
@@ -223,41 +238,68 @@ namespace SmartphoneLiveCamera
             int kx = joystickCenterX + (int)MathF.Round(cx);
             int ky = joystickCenterY + (int)MathF.Round(cy);
 
-            DrawFilledCircle(b, kx, ky, InnerRadius,     ColJoystickKnob * 0.9f);
-            DrawFilledCircle(b, kx, ky, InnerRadius - 3, Color.White);
+            // Metallic knob with center electric blue dot
+            DrawFilledCircle(b, kx, ky, InnerRadius,     ColJoystickKnob);
+            DrawFilledCircle(b, kx, ky, InnerRadius - 3, ColJoystickDot);
+            DrawFilledCircle(b, kx, ky, InnerRadius - 5, Color.White);
         }
 
         // -----------------------------------------------------------------------
-        // Button drawing (Enlarged icons matching Camera App style)
+        // Button drawing (Enlarged 32px Circular glass capsules)
         // -----------------------------------------------------------------------
-        private static void DrawIconButton(SpriteBatch b, Rectangle bounds, Rectangle iconSource, int mx, int my)
+        private static void DrawZoomOutButton(SpriteBatch b, Rectangle bounds, int mx, int my)
         {
             bool isHov = bounds.Contains(mx, my);
-            b.Draw(Game1.staminaRect, bounds, isHov ? ColBtnHover : ColBtnNormal);
-            DrawBorder(b, bounds, ColBtnBorder);
+            int r = bounds.Width / 2;
+            int cx = bounds.Center.X;
+            int cy = bounds.Center.Y;
 
-            if (Game1.mouseCursors != null && !Game1.mouseCursors.IsDisposed)
-            {
-                int iconSz = 20; // Enlarged icon size (from 14 to 20)
-                Rectangle iconBounds = new Rectangle(bounds.Center.X - iconSz / 2, bounds.Center.Y - iconSz / 2, iconSz, iconSz);
-                Rectangle shadowBounds = new Rectangle(iconBounds.X + 1, iconBounds.Y + 1, iconBounds.Width, iconBounds.Height);
-                b.Draw(Game1.mouseCursors, shadowBounds, iconSource, Color.Black * 0.45f);
-                b.Draw(Game1.mouseCursors, iconBounds, iconSource, ColIconNormal);
-            }
+            DrawFilledCircle(b, cx, cy, r, isHov ? ColBtnBgHover : ColBtnBgNormal);
+            DrawCircleRing(b,   cx, cy, r, isHov ? ColBtnBorderHov : ColBtnBorder);
+
+            Color col = isHov ? Color.White : ColIconNormal;
+            // Clean vector minus symbol
+            b.Draw(Game1.staminaRect, new Rectangle(cx - 6, cy - 1, 12, 3), Color.Black * 0.40f);
+            b.Draw(Game1.staminaRect, new Rectangle(cx - 6, cy - 1, 12, 2), col);
+        }
+
+        private static void DrawZoomInButton(SpriteBatch b, Rectangle bounds, int mx, int my)
+        {
+            bool isHov = bounds.Contains(mx, my);
+            int r = bounds.Width / 2;
+            int cx = bounds.Center.X;
+            int cy = bounds.Center.Y;
+
+            DrawFilledCircle(b, cx, cy, r, isHov ? ColBtnBgHover : ColBtnBgNormal);
+            DrawCircleRing(b,   cx, cy, r, isHov ? ColBtnBorderHov : ColBtnBorder);
+
+            Color col = isHov ? Color.White : ColIconNormal;
+            // Clean vector plus symbol
+            b.Draw(Game1.staminaRect, new Rectangle(cx - 6, cy - 1, 12, 3), Color.Black * 0.40f);
+            b.Draw(Game1.staminaRect, new Rectangle(cx - 1, cy - 6, 3, 12), Color.Black * 0.40f);
+
+            b.Draw(Game1.staminaRect, new Rectangle(cx - 6, cy - 1, 12, 2), col);
+            b.Draw(Game1.staminaRect, new Rectangle(cx - 1, cy - 6, 2, 12), col);
         }
 
         private static void DrawFlashButton(SpriteBatch b, Rectangle bounds, bool active, int mx, int my)
         {
             bool isHov = bounds.Contains(mx, my);
-            Color bg   = active ? ColFlashActive : (isHov ? ColBtnHover : ColBtnNormal);
-            b.Draw(Game1.staminaRect, bounds, bg);
-            DrawBorder(b, bounds, ColBtnBorder);
+            int r = bounds.Width / 2;
+            int cx = bounds.Center.X;
+            int cy = bounds.Center.Y;
+
+            Color bg = active ? ColFlashActive * 0.85f : (isHov ? ColBtnBgHover : ColBtnBgNormal);
+            Color border = active ? ColFlashActive : (isHov ? ColBtnBorderHov : ColBtnBorder);
+
+            DrawFilledCircle(b, cx, cy, r, bg);
+            DrawCircleRing(b,   cx, cy, r, border);
 
             if (Game1.mouseCursors != null && !Game1.mouseCursors.IsDisposed)
             {
-                int iconSz = 20; // Enlarged icon size (from 16 to 20)
-                Rectangle iconBounds = new Rectangle(bounds.Center.X - iconSz / 2, bounds.Center.Y - iconSz / 2, iconSz, iconSz);
-                Color iconCol = active ? Color.Black * 0.85f : ColIconNormal;
+                int iconSz = 22; // Enlarged icon size inside 32px button
+                Rectangle iconBounds = new Rectangle(cx - iconSz / 2, cy - iconSz / 2, iconSz, iconSz);
+                Color iconCol = active ? Color.Black * 0.90f : (isHov ? Color.White : ColIconNormal);
 
                 if (!active)
                 {
@@ -271,17 +313,20 @@ namespace SmartphoneLiveCamera
         private static void DrawCaptureButton(SpriteBatch b, Rectangle bounds, int mx, int my)
         {
             bool isHov = bounds.Contains(mx, my);
-            Color bg   = isHov ? ColBtnHover : ColBtnNormal;
-            b.Draw(Game1.staminaRect, bounds, bg);
-            DrawBorder(b, bounds, ColBtnBorder);
+            int r = bounds.Width / 2;
+            int cx = bounds.Center.X;
+            int cy = bounds.Center.Y;
 
-            // Concentric Camera Shutter Rings (Enlarged)
-            int outerR = Math.Min(bounds.Width, bounds.Height) / 2 - 4;
-            int innerR = outerR - 3;
+            DrawFilledCircle(b, cx, cy, r, isHov ? ColBtnBgHover : ColBtnBgNormal);
+            DrawCircleRing(b,   cx, cy, r, isHov ? ColBtnBorderHov : ColBtnBorder);
 
-            DrawFilledCircle(b, bounds.Center.X, bounds.Center.Y, outerR,     Color.White * 0.45f);
-            DrawFilledCircle(b, bounds.Center.X, bounds.Center.Y, outerR - 2, Color.Black * 0.60f);
-            DrawFilledCircle(b, bounds.Center.X, bounds.Center.Y, innerR,     isHov ? Color.White : Color.White * 0.88f);
+            // Shutter Ring & Red Record Dot (Scaled for 32px button)
+            int outerR = r - 5;
+            int innerR = outerR - 4;
+
+            DrawFilledCircle(b, cx, cy, outerR,     Color.White * 0.50f);
+            DrawFilledCircle(b, cx, cy, outerR - 2, ColChassisBg);
+            DrawFilledCircle(b, cx, cy, innerR,     isHov ? new Color(240, 60, 60) : new Color(210, 45, 45));
         }
 
         private static void DrawBorder(SpriteBatch b, Rectangle r, Color c)
@@ -290,6 +335,38 @@ namespace SmartphoneLiveCamera
             b.Draw(Game1.staminaRect, new Rectangle(r.X,         r.Bottom - 1, r.Width, 1),        c);
             b.Draw(Game1.staminaRect, new Rectangle(r.X,         r.Y,          1,       r.Height), c);
             b.Draw(Game1.staminaRect, new Rectangle(r.Right - 1, r.Y,          1,       r.Height), c);
+        }
+
+        private static void DrawCircleRing(SpriteBatch b, int cx, int cy, int r, Color color)
+        {
+            if (r <= 0) return;
+            int rInnerSq = (r - 1) * (r - 1);
+            int rOuterSq = r * r;
+            for (int dy = -r; dy <= r; dy++)
+            {
+                int dySq = dy * dy;
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    int distSq = dx * dx + dySq;
+                    if (distSq <= rOuterSq && distSq >= rInnerSq)
+                        b.Draw(Game1.staminaRect, new Rectangle(cx + dx, cy + dy, 1, 1), color);
+                }
+            }
+        }
+
+        private static void DrawFilledCircle(SpriteBatch b, int cx, int cy, int r, Color color)
+        {
+            if (r <= 0) return;
+            int rSq = r * r;
+            for (int dy = -r; dy <= r; dy++)
+            {
+                int dySq = dy * dy;
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    if (dx * dx + dySq <= rSq)
+                        b.Draw(Game1.staminaRect, new Rectangle(cx + dx, cy + dy, 1, 1), color);
+                }
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -408,21 +485,6 @@ namespace SmartphoneLiveCamera
             if (Math.Abs(ModEntry.Config.CaptureRateSeconds - newRate) > 0.01f)
             {
                 ModEntry.Config.CaptureRateSeconds = newRate;
-            }
-        }
-
-        private static void DrawFilledCircle(SpriteBatch b, int cx, int cy, int r, Color color)
-        {
-            if (r <= 0) return;
-            int rSq = r * r;
-            for (int dy = -r; dy <= r; dy++)
-            {
-                int dySq = dy * dy;
-                for (int dx = -r; dx <= r; dx++)
-                {
-                    if (dx * dx + dySq <= rSq)
-                        b.Draw(Game1.staminaRect, new Rectangle(cx + dx, cy + dy, 1, 1), color);
-                }
             }
         }
     }
