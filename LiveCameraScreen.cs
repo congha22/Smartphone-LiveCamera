@@ -50,11 +50,20 @@ namespace SmartphoneLiveCamera
         private const float ZoomMax = 2.0f;
         private const float ZoomStep = 0.05f;
 
-        /// <summary>Current zoom level for the live feed (0.5x – 2.0x).</summary>
+        /// <summary>Current zoom level for the live feed (0.5x – 2.0x), persisted per camera.</summary>
         public float ZoomLevel
         {
-            get => zoomLevel;
-            set => zoomLevel = Math.Clamp(value, ZoomMin, ZoomMax);
+            get => activeCameraEntry != null ? activeCameraEntry.ZoomLevel : zoomLevel;
+            set
+            {
+                float val = Math.Clamp(value, ZoomMin, ZoomMax);
+                zoomLevel = val;
+                if (activeCameraEntry != null)
+                {
+                    activeCameraEntry.ZoomLevel = val;
+                    saveCallback();
+                }
+            }
         }
 
         /// <summary>Whether flash light fires when a photo is captured.</summary>
@@ -219,9 +228,16 @@ namespace SmartphoneLiveCamera
             }
             if (currentView == View.Live && activeCameraEntry != null && !liveFeedCapturing)
             {
-                if (liveFeedTarget == null || liveFeedTarget.IsDisposed) ReallocLiveFeedTarget();
-                liveFeedTimer -= time.ElapsedGameTime.TotalSeconds;
-                if (liveFeedTimer <= 0) { liveFeedTimer = LiveFeedRefreshSeconds; TryCaptureFrame(); }
+                if (IsPlayerInActiveCameraLocation)
+                {
+                    liveFeedTimer = LiveFeedRefreshSeconds;
+                }
+                else
+                {
+                    if (liveFeedTarget == null || liveFeedTarget.IsDisposed) ReallocLiveFeedTarget();
+                    liveFeedTimer -= time.ElapsedGameTime.TotalSeconds;
+                    if (liveFeedTimer <= 0) { liveFeedTimer = LiveFeedRefreshSeconds; TryCaptureFrame(); }
+                }
             }
             // Count down capture flash
             if (captureFlashRemainingSeconds > 0.0)
@@ -359,8 +375,8 @@ namespace SmartphoneLiveCamera
                     b.Draw(Game1.mouseCursors, cIconBounds, src, Color.DimGray * 0.85f);
                 }
 
-                // Labels - Line 1: Name (truncated with ellipsis to fit 2-column card)
-                float nameScale = 0.50f * phoneUiScale;
+                // Labels - Display Name only (vertically centered in card)
+                float nameScale = 0.48f * phoneUiScale;
                 int textX = cardRect.X + Scale(44);
                 float maxTextW = cardRect.Width - Scale(76);
 
@@ -376,12 +392,8 @@ namespace SmartphoneLiveCamera
                     shownName = len > 0 ? displayName[..len] + "..." : "";
                 }
 
-                b.DrawString(font, shownName, new Vector2(textX, cardRect.Y + Scale(8)), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
-
-                // Line 2: Subtitle
-                float subScale = 0.40f * phoneUiScale;
-                string subStr = $"{entry.LocationName} ({(int)entry.TileX},{(int)entry.TileY})";
-                b.DrawString(Game1.smallFont, subStr, new Vector2(textX, cardRect.Y + Scale(40)), Color.DarkSlateGray, 0f, Vector2.Zero, subScale, SpriteEffects.None, 1f);
+                Vector2 nSz = font.MeasureString(shownName) * nameScale;
+                b.DrawString(font, shownName, new Vector2(textX, cardRect.Y + (cardRect.Height - nSz.Y) / 2f), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
 
                 // Delete 'X' Button on top-right of card
                 bool delHov = i == hoveredDeleteBtn;
@@ -447,9 +459,34 @@ namespace SmartphoneLiveCamera
 
         private double LiveFeedRefreshSeconds => ModEntry.Config.CaptureRateSeconds;
 
+        private bool IsPlayerInActiveCameraLocation =>
+            activeCameraEntry != null &&
+            Game1.player?.currentLocation != null &&
+            string.Equals(Game1.player.currentLocation.Name, activeCameraEntry.LocationName, StringComparison.OrdinalIgnoreCase);
+
         private void DrawLiveView(SpriteBatch b, Rectangle lc)
         {
             SpriteFont font = Game1.dialogueFont;
+
+            if (IsPlayerInActiveCameraLocation)
+            {
+                b.Draw(Game1.staminaRect, lc, new Color(16, 22, 34));
+
+                string msg = "You are here";
+                float scale = 0.65f * phoneUiScale;
+                Vector2 sz = font.MeasureString(msg) * scale;
+
+                int cardW = (int)sz.X + Scale(48);
+                int cardH = (int)sz.Y + Scale(32);
+                Rectangle msgBox = new Rectangle(lc.Center.X - cardW / 2, lc.Center.Y - cardH / 2, cardW, cardH);
+
+                CardDrawing.DrawCard(api, b, msgBox, new Color(240, 245, 255), scale: 0.75f * phoneUiScale);
+                b.DrawString(font, msg, new Vector2(msgBox.Center.X - sz.X / 2f, msgBox.Center.Y - sz.Y / 2f), Color.DarkSlateGray, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+
+                DrawCctvOverlay(b, lc);
+                return;
+            }
+
             if (liveFeedHasFrame && liveFeedTarget != null && !liveFeedTarget.IsDisposed)
             {
                 b.Draw(Game1.staminaRect, lc, Color.Black);
@@ -556,13 +593,35 @@ namespace SmartphoneLiveCamera
 
         public void DrawScreenContent(SpriteBatch b, Rectangle dest)
         {
-            if (currentView == View.Live && liveFeedHasFrame && liveFeedTarget != null && !liveFeedTarget.IsDisposed)
+            if (currentView == View.Live)
             {
-                b.Draw(Game1.staminaRect, dest, Color.Black);
-                b.Draw(liveFeedTarget, dest, Color.White);
-                DrawCctvOverlay(b, dest);
+                if (IsPlayerInActiveCameraLocation)
+                {
+                    b.Draw(Game1.staminaRect, dest, new Color(16, 22, 34));
+                    SpriteFont font = Game1.dialogueFont;
+                    string msg = "You are here";
+                    float scale = 0.48f;
+                    Vector2 sz = font.MeasureString(msg) * scale;
+                    int cardW = (int)sz.X + 24;
+                    int cardH = (int)sz.Y + 16;
+                    Rectangle msgBox = new Rectangle(dest.Center.X - cardW / 2, dest.Center.Y - cardH / 2, cardW, cardH);
+                    CardDrawing.DrawCard(api, b, msgBox, new Color(240, 245, 255), scale: 0.55f);
+                    b.DrawString(font, msg, new Vector2(msgBox.Center.X - sz.X / 2f, msgBox.Center.Y - sz.Y / 2f), Color.DarkSlateGray, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+                    DrawCctvOverlay(b, dest);
+                    return;
+                }
+                if (liveFeedHasFrame && liveFeedTarget != null && !liveFeedTarget.IsDisposed)
+                {
+                    b.Draw(Game1.staminaRect, dest, Color.Black);
+                    b.Draw(liveFeedTarget, dest, Color.White);
+                    DrawCctvOverlay(b, dest);
+                    return;
+                }
             }
-            else { Texture2D? bg = api.GetPhoneBackgroundTexture(); if (bg != null && !bg.IsDisposed) b.Draw(bg, dest, Color.White); else b.Draw(Game1.staminaRect, dest, ColorBackground); }
+
+            Texture2D? bg = api.GetPhoneBackgroundTexture();
+            if (bg != null && !bg.IsDisposed) b.Draw(bg, dest, Color.White);
+            else b.Draw(Game1.staminaRect, dest, ColorBackground);
         }
 
         public override void receiveKeyPress(Keys key)
@@ -659,7 +718,7 @@ namespace SmartphoneLiveCamera
             Game1.addHUDMessage(new HUDMessage($"Camera added: {entry.Name}", HUDMessage.newQuest_type));
         }
 
-        private void OpenLiveView(CameraEntry entry) { activeCameraEntry = entry; liveFeedTimer = 0; currentView = View.Live; ReallocLiveFeedTarget(); api.SetHudPinned(true); Game1.activeClickableMenu = null; }
+        private void OpenLiveView(CameraEntry entry) { activeCameraEntry = entry; zoomLevel = entry.ZoomLevel > 0f ? entry.ZoomLevel : 1.0f; liveFeedTimer = 0; currentView = View.Live; ReallocLiveFeedTarget(); api.SetHudPinned(true); Game1.activeClickableMenu = null; }
         private void GoToList() { currentView = View.List; activeCameraEntry = null; RebuildListLayout(); api.SetHudPinned(false); }
 
         private void LandscapeToPortraitClick(int cx, int cy, out int px, out int py)

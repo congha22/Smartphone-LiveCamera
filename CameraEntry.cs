@@ -4,6 +4,7 @@
 
 using System;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace SmartphoneLiveCamera
 {
@@ -28,7 +29,11 @@ namespace SmartphoneLiveCamera
         public float TileX { get; set; }
         public float TileY { get; set; }
 
-        /// <summary>Returns the tile position as a Vector2.</summary>
+        /// <summary>Zoom level for this camera (default 1.0f).</summary>
+        public float ZoomLevel { get; set; } = 1.0f;
+
+        /// <summary>Returns the tile position as a Vector2 (ignored during JSON serialization).</summary>
+        [JsonIgnore]
         public Vector2 TilePosition => new Vector2(TileX, TileY);
     }
 }

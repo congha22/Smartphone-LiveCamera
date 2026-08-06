@@ -388,6 +388,14 @@ namespace SmartphoneLiveCamera
                 joystickHeld = false;
                 joystickDx   = 0f;
                 joystickDy   = 0f;
+
+                CameraEntry? cam = screen?.ActiveCamera;
+                if (cam != null)
+                {
+                    GameLocation? loc = Game1.getLocationFromName(cam.LocationName);
+                    string locName = loc?.DisplayName ?? cam.LocationName;
+                    cam.Name = $"{locName} ({(int)MathF.Round(cam.TileX)}, {(int)MathF.Round(cam.TileY)})";
+                }
             }
         }
 
