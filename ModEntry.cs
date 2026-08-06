@@ -131,12 +131,12 @@ namespace SmartphoneLiveCamera
             gmcm.AddNumberOption(
                 mod: ModManifest,
                 getValue: () => Config.CaptureRateSeconds,
-                setValue: value => Config.CaptureRateSeconds = (float)Math.Round(value * 2f) / 2f,
+                setValue: value => Config.CaptureRateSeconds = (float)Math.Round(value * 4f) / 4f,
                 name: () => "Capture Rate (seconds)",
-                tooltip: () => "Time interval in seconds between live camera feed updates (0.5s to 20.0s).",
-                min: 0.5f,
+                tooltip: () => "Time interval in seconds between live camera feed updates (0.25s to 20.0s).",
+                min: 0.25f,
                 max: 20.0f,
-                interval: 0.5f
+                interval: 0.25f
             );
         }
 

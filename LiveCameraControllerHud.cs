@@ -160,7 +160,7 @@ namespace SmartphoneLiveCamera
             DrawBorder(b, boundsRateSlider, ColPanelBorder);
 
             float rate = ModEntry.Config.CaptureRateSeconds;
-            float frac = Math.Clamp((rate - 0.5f) / 19.5f, 0f, 1f);
+            float frac = Math.Clamp((rate - 0.25f) / 19.75f, 0f, 1f);
 
             // Track background
             b.Draw(Game1.staminaRect, rateTrackRect, Color.Black * 0.50f);
@@ -184,7 +184,7 @@ namespace SmartphoneLiveCamera
             if (isHov)
             {
                 SpriteFont font = Game1.smallFont;
-                string label = $"{rate:0.0}s";
+                string label = $"{rate:0.##}s";
                 const float scale = 0.60f;
                 Vector2 sz = font.MeasureString(label) * scale;
                 Vector2 pos = new Vector2(boundsRateSlider.Center.X - sz.X / 2f, knobRect.Center.Y - sz.Y / 2f);
@@ -395,8 +395,8 @@ namespace SmartphoneLiveCamera
         {
             if (rateTrackRect.Height <= 0) return;
             float frac = Math.Clamp((float)(my - rateTrackRect.Y) / rateTrackRect.Height, 0f, 1f);
-            float newRate = 0.5f + frac * 19.5f;
-            newRate = MathF.Round(newRate * 2f) / 2f;
+            float newRate = 0.25f + frac * 19.75f;
+            newRate = MathF.Round(newRate * 4f) / 4f;
             if (Math.Abs(ModEntry.Config.CaptureRateSeconds - newRate) > 0.01f)
             {
                 ModEntry.Config.CaptureRateSeconds = newRate;

@@ -162,20 +162,40 @@ namespace SmartphoneLiveCamera
         {
             cardRects.Clear();
             Rectangle lc = LandscapeContentRect;
-            int padX = Scale(12); int padY = Scale(46); int cardH = Scale(62); int gap = Scale(8); int dBtnW = Scale(36);
-            int cardW = lc.Width - padX * 2; int startX = lc.X + padX;
-            int y = lc.Y + padY - vertScrollOffset;
+            int padX = Scale(10);
+            int headerH = Scale(56);
+            int padY = Scale(10);
+            int cardH = Scale(72);
+            int gap = Scale(8);
+            int dBtnW = Scale(28);
+            int dBtnH = Scale(28);
+
+            int colWidth = (lc.Width - padX * 2 - gap) / 2;
+            int startX = lc.X + padX;
+
+            int rows = (cameras.Count + 1) / 2;
+            int totalContentHeight = padY + rows * (cardH + gap) + padY;
+            int visibleAreaHeight = lc.Height - headerH;
+            maxVertScroll = Math.Max(0, totalContentHeight - visibleAreaHeight);
+            vertScrollOffset = Math.Clamp(vertScrollOffset, 0, maxVertScroll);
+
+            int scrollStartY = lc.Y + headerH + padY - vertScrollOffset;
             for (int i = 0; i < cameras.Count; i++)
             {
-                Rectangle card = new(startX, y, cardW, cardH);
-                Rectangle dBtn = new(card.Right - dBtnW - Scale(6), card.Y + (cardH - Scale(26)) / 2, dBtnW, Scale(26));
+                int col = i % 2;
+                int row = i / 2;
+                int cardX = startX + col * (colWidth + gap);
+                int cardY = scrollStartY + row * (cardH + gap);
+
+                Rectangle card = new(cardX, cardY, colWidth, cardH);
+                Rectangle dBtn = new(card.Right - dBtnW - Scale(4), card.Y + Scale(4), dBtnW, dBtnH);
                 cardRects.Add((card, dBtn, cameras[i]));
-                y += cardH + gap;
             }
-            int addBtnH = Scale(48);
-            addBtnRect = new Rectangle(startX, y + Scale(4), cardW, addBtnH);
-            int totalH = y + Scale(4) + addBtnH - (lc.Y + padY) + Scale(10);
-            maxVertScroll = Math.Max(0, totalH - lc.Height);
+
+            // Position "+ Add Camera" button in the top header banner on the right!
+            int addBtnW = Scale(150);
+            int addBtnH = Scale(34);
+            addBtnRect = new Rectangle(lc.Right - addBtnW - Scale(12), lc.Y + (headerH - addBtnH) / 2, addBtnW, addBtnH);
         }
 
         public override void update(GameTime time)
@@ -263,18 +283,41 @@ namespace SmartphoneLiveCamera
             }
             else { b.Draw(Game1.staminaRect, lc, ColorBackground); }
 
-            b.End();
-            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
-                    null, new RasterizerState { ScissorTestEnable = true });
-            Rectangle prevScissor = Game1.graphics.GraphicsDevice.ScissorRectangle;
-            Game1.graphics.GraphicsDevice.ScissorRectangle = Rectangle.Intersect(lc, Game1.graphics.GraphicsDevice.Viewport.Bounds);
+            int headerH = Scale(56);
 
-            if (currentView == View.List) DrawListView(b, lc);
-            else DrawLiveView(b, lc);
+            if (currentView == View.List)
+            {
+                // Scissor test rectangle for cards grid BELOW top banner header
+                b.End();
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                        null, new RasterizerState { ScissorTestEnable = true });
+                Rectangle prevScissor = Game1.graphics.GraphicsDevice.ScissorRectangle;
+                Rectangle scrollArea = new Rectangle(lc.X, lc.Y + headerH, lc.Width, lc.Height - headerH);
+                Game1.graphics.GraphicsDevice.ScissorRectangle = Rectangle.Intersect(scrollArea, Game1.graphics.GraphicsDevice.Viewport.Bounds);
 
-            b.End();
-            Game1.graphics.GraphicsDevice.ScissorRectangle = prevScissor;
-            b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+                DrawListView(b, lc);
+
+                b.End();
+                Game1.graphics.GraphicsDevice.ScissorRectangle = prevScissor;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+
+                // Draw static header banner on top OUTSIDE scissor test!
+                DrawListHeader(b, lc);
+            }
+            else
+            {
+                b.End();
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                        null, new RasterizerState { ScissorTestEnable = true });
+                Rectangle prevScissor = Game1.graphics.GraphicsDevice.ScissorRectangle;
+                Game1.graphics.GraphicsDevice.ScissorRectangle = Rectangle.Intersect(lc, Game1.graphics.GraphicsDevice.Viewport.Bounds);
+
+                DrawLiveView(b, lc);
+
+                b.End();
+                Game1.graphics.GraphicsDevice.ScissorRectangle = prevScissor;
+                b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+            }
 
             if (phoneFrameTexture != null && !phoneFrameTexture.IsDisposed)
             {
@@ -290,60 +333,116 @@ namespace SmartphoneLiveCamera
         private void DrawListView(SpriteBatch b, Rectangle lc)
         {
             SpriteFont font = Game1.dialogueFont;
-            int headerH = Scale(38);
-            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y, lc.Width, headerH), ColorBackground * 0.95f);
-            string title = "Live Camera"; float ts = 0.45f * phoneUiScale;
-            Vector2 tsz = font.MeasureString(title) * ts;
-            b.DrawString(font, title, new Vector2(lc.X + Scale(14), lc.Y + (headerH - tsz.Y) / 2f), ColorAccent, 0f, Vector2.Zero, ts, SpriteEffects.None, 1f);
-            string cntStr = $"{cameras.Count} camera{(cameras.Count == 1 ? "" : "s")}"; float cts = 0.32f * phoneUiScale;
-            Vector2 ctsz = font.MeasureString(cntStr) * cts;
-            b.DrawString(font, cntStr, new Vector2(lc.Right - ctsz.X - Scale(14), lc.Y + (headerH - ctsz.Y) / 2f), ColorSubText, 0f, Vector2.Zero, cts, SpriteEffects.None, 1f);
-            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y + headerH, lc.Width, Scale(1)), ColorBorder);
+            int headerH = Scale(56);
+            int scissoredTop = lc.Y + headerH;
 
+            // 2-Column Cards Grid
             for (int i = 0; i < cardRects.Count; i++)
             {
                 var (cardRect, deleteRect, entry) = cardRects[i];
-                if (cardRect.Bottom < lc.Y || cardRect.Y > lc.Bottom) continue;
+                if (cardRect.Bottom < scissoredTop || cardRect.Y > lc.Bottom) continue;
+
                 bool hovered = i == hoveredCard;
-                b.Draw(Game1.staminaRect, cardRect, hovered ? ColorCardHover : ColorCard);
-                b.Draw(Game1.staminaRect, new Rectangle(cardRect.X, cardRect.Y, Scale(4), cardRect.Height), ColorAccent * 0.8f);
-                int iconSz = Scale(24);
-                Rectangle iconRect = new(cardRect.X + Scale(12), cardRect.Y + (cardRect.Height - iconSz) / 2, iconSz, iconSz);
-                b.Draw(Game1.staminaRect, iconRect, ColorAccent * 0.3f);
-                b.Draw(Game1.staminaRect, new Rectangle(iconRect.X + Scale(3), iconRect.Y + Scale(3), iconSz - Scale(6), iconSz - Scale(6)), ColorAccent * 0.7f);
-                float nts = 0.38f * phoneUiScale;
-                string nameStr = entry.Name.Length > 28 ? entry.Name[..25] + "..." : entry.Name;
-                b.DrawString(font, nameStr, new Vector2(cardRect.X + Scale(44), cardRect.Y + Scale(10)), ColorText, 0f, Vector2.Zero, nts, SpriteEffects.None, 1f);
-                float sts = 0.30f * phoneUiScale;
-                string subStr = $"{entry.LocationName}  ({(int)entry.TileX}, {(int)entry.TileY})";
-                b.DrawString(font, subStr, new Vector2(cardRect.X + Scale(44), cardRect.Y + Scale(32)), ColorSubText, 0f, Vector2.Zero, sts, SpriteEffects.None, 1f);
+
+                // Draw theme card background using CardDrawing.DrawCard (matching Delivery Service)
+                CardDrawing.DrawCard(api, b, cardRect, hovered ? new Color(240, 244, 255) : Color.White, scale: 0.70f * phoneUiScale);
+
+                // Left camera icon
+                int iconSz = Scale(32);
+                Rectangle iconBox = new(cardRect.X + Scale(8), cardRect.Y + (cardRect.Height - iconSz) / 2, iconSz, iconSz);
+
+                if (Game1.mouseCursors != null && !Game1.mouseCursors.IsDisposed)
+                {
+                    Rectangle src = new Rectangle(193, 373, 9, 9);
+                    int cIconSz = Scale(22);
+                    Rectangle cIconBounds = new Rectangle(iconBox.Center.X - cIconSz / 2, iconBox.Center.Y - cIconSz / 2, cIconSz, cIconSz);
+                    b.Draw(Game1.mouseCursors, cIconBounds, src, Color.DimGray * 0.85f);
+                }
+
+                // Labels - Line 1: Name (truncated with ellipsis to fit 2-column card)
+                float nameScale = 0.50f * phoneUiScale;
+                int textX = cardRect.X + Scale(44);
+                float maxTextW = cardRect.Width - Scale(76);
+
+                string displayName = entry.Name;
+                string shownName = displayName;
+                if (font.MeasureString(displayName).X * nameScale > maxTextW)
+                {
+                    int len = displayName.Length;
+                    while (len > 0 && font.MeasureString(displayName[..len] + "...").X * nameScale > maxTextW)
+                    {
+                        len--;
+                    }
+                    shownName = len > 0 ? displayName[..len] + "..." : "";
+                }
+
+                b.DrawString(font, shownName, new Vector2(textX, cardRect.Y + Scale(8)), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
+
+                // Line 2: Subtitle
+                float subScale = 0.40f * phoneUiScale;
+                string subStr = $"{entry.LocationName} ({(int)entry.TileX},{(int)entry.TileY})";
+                b.DrawString(Game1.smallFont, subStr, new Vector2(textX, cardRect.Y + Scale(40)), Color.DarkSlateGray, 0f, Vector2.Zero, subScale, SpriteEffects.None, 1f);
+
+                // Delete 'X' Button on top-right of card
                 bool delHov = i == hoveredDeleteBtn;
-                b.Draw(Game1.staminaRect, deleteRect, delHov ? ColorDanger : new Color(80, 30, 30));
-                float dts = 0.30f * phoneUiScale;
+                Color delCol = delHov ? new Color(220, 50, 50) : new Color(170, 70, 70);
+                b.Draw(Game1.staminaRect, deleteRect, delCol * 0.85f);
+
+                float dts = 0.36f * phoneUiScale;
                 Vector2 dSz = font.MeasureString("X") * dts;
                 b.DrawString(font, "X", new Vector2(deleteRect.Center.X - dSz.X / 2f, deleteRect.Center.Y - dSz.Y / 2f), Color.White, 0f, Vector2.Zero, dts, SpriteEffects.None, 1f);
-                b.Draw(Game1.staminaRect, new Rectangle(cardRect.X, cardRect.Bottom - Scale(1), cardRect.Width, Scale(1)), ColorBorder * 0.4f);
-            }
-
-            if (addBtnRect.Y < lc.Bottom && addBtnRect.Bottom > lc.Y)
-            {
-                Color fill = addBtnHover ? ColorAddBtnHover : ColorAddBtn;
-                b.Draw(Game1.staminaRect, addBtnRect, fill * 0.85f);
-                b.Draw(Game1.staminaRect, new Rectangle(addBtnRect.X, addBtnRect.Y, addBtnRect.Width, Scale(2)), ColorAddBtn);
-                b.Draw(Game1.staminaRect, new Rectangle(addBtnRect.X, addBtnRect.Bottom - Scale(2), addBtnRect.Width, Scale(2)), ColorAddBtn);
-                b.Draw(Game1.staminaRect, new Rectangle(addBtnRect.X, addBtnRect.Y, Scale(2), addBtnRect.Height), ColorAddBtn);
-                b.Draw(Game1.staminaRect, new Rectangle(addBtnRect.Right - Scale(2), addBtnRect.Y, Scale(2), addBtnRect.Height), ColorAddBtn);
-                string addStr = "+ Add Camera at Current Location"; float ats = 0.36f * phoneUiScale;
-                Vector2 aSz = font.MeasureString(addStr) * ats;
-                b.DrawString(font, addStr, new Vector2(addBtnRect.Center.X - aSz.X / 2f, addBtnRect.Center.Y - aSz.Y / 2f), Color.White, 0f, Vector2.Zero, ats, SpriteEffects.None, 1f);
             }
 
             if (cameras.Count == 0)
             {
-                string emptyStr = "No cameras placed yet."; float ets = 0.36f * phoneUiScale;
+                string emptyStr = "No cameras placed yet.";
+                float ets = 0.44f * phoneUiScale;
                 Vector2 eSz = font.MeasureString(emptyStr) * ets;
-                b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X / 2f, lc.Y + Scale(80) - eSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
+                b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X / 2f, lc.Y + Scale(90) - eSz.Y / 2f), Color.DimGray, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
             }
+
+            // Scrollbar Indicator
+            if (maxVertScroll > 0)
+            {
+                int trackY = scissoredTop + Scale(4);
+                int trackH = lc.Height - headerH - Scale(8);
+                Rectangle trackRect = new(lc.Right - Scale(6), trackY, Scale(4), trackH);
+                b.Draw(Game1.staminaRect, trackRect, Color.Black * 0.20f);
+
+                int visibleH = lc.Height - headerH;
+                int totalH = maxVertScroll + visibleH;
+                float visibleRatio = (float)visibleH / totalH;
+                int thumbH = Math.Max(Scale(18), (int)(trackH * visibleRatio));
+                float scrollRatio = (float)vertScrollOffset / maxVertScroll;
+                int thumbY = trackY + (int)(scrollRatio * (trackH - thumbH));
+                Rectangle thumbRect = new(trackRect.X, thumbY, trackRect.Width, thumbH);
+                b.Draw(Game1.staminaRect, thumbRect, ColorAccent * 0.75f);
+            }
+        }
+
+        private void DrawListHeader(SpriteBatch b, Rectangle lc)
+        {
+            SpriteFont font = Game1.dialogueFont;
+            int headerH = Scale(56);
+
+            // Dark Header background bar matching phone theme
+            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y, lc.Width, headerH), new Color(20, 26, 40) * 0.96f);
+            b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y + headerH - Scale(1), lc.Width, Scale(1)), ColorBorder);
+
+            // Title on the left
+            string title = "Live Camera";
+            float ts = 0.54f * phoneUiScale;
+            Vector2 tsz = font.MeasureString(title) * ts;
+            b.DrawString(font, title, new Vector2(lc.X + Scale(14), lc.Y + (headerH - tsz.Y) / 2f), ColorAccent, 0f, Vector2.Zero, ts, SpriteEffects.None, 1f);
+
+            // "+ Add Camera" Button on the right side of the header banner!
+            Color addCol = addBtnHover ? new Color(210, 250, 230) : Color.White;
+            CardDrawing.DrawCard(api, b, addBtnRect, addCol, scale: 0.55f * phoneUiScale);
+
+            string addStr = "+ Add Camera";
+            float ats = 0.44f * phoneUiScale;
+            Vector2 aSz = font.MeasureString(addStr) * ats;
+            b.DrawString(font, addStr, new Vector2(addBtnRect.Center.X - aSz.X / 2f, addBtnRect.Center.Y - aSz.Y / 2f), new Color(40, 120, 80), 0f, Vector2.Zero, ats, SpriteEffects.None, 1f);
         }
 
         private double LiveFeedRefreshSeconds => ModEntry.Config.CaptureRateSeconds;
