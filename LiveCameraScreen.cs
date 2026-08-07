@@ -639,7 +639,7 @@ namespace SmartphoneLiveCamera
             int pox = xPositionOnScreen - (phoneFrameWidth - phoneFrameHeight) / 2;
             int poy = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth) / 2;
             if (api.HandlePhoneAppBottomNavClick(px, py, pox, poy, onBack: currentView == View.Live ? (Action)GoToList : onBack)) return;
-            if (api.HandlePhoneSizeButtonsClick(px, py, pox, poy)) return;
+            if (api.HandlePhoneSizeButtonsClick(x, y, xPositionOnScreen, yPositionOnScreen)) return;
             scrollStartY = y; lastScrollMouseY = y; hasScrolled = false; isScrolling = false;
         }
 
@@ -718,8 +718,8 @@ namespace SmartphoneLiveCamera
             Game1.addHUDMessage(new HUDMessage($"Camera added: {entry.Name}", HUDMessage.newQuest_type));
         }
 
-        private void OpenLiveView(CameraEntry entry) { activeCameraEntry = entry; zoomLevel = entry.ZoomLevel > 0f ? entry.ZoomLevel : 1.0f; liveFeedTimer = 0; currentView = View.Live; ReallocLiveFeedTarget(); api.SetHudPinned(true); Game1.activeClickableMenu = null; }
-        private void GoToList() { currentView = View.List; activeCameraEntry = null; RebuildListLayout(); api.SetHudPinned(false); }
+        private void OpenLiveView(CameraEntry entry) { activeCameraEntry = entry; zoomLevel = entry.ZoomLevel > 0f ? entry.ZoomLevel : 1.0f; liveFeedTimer = 0; currentView = View.Live; ReallocLiveFeedTarget(); ModEntry.Instance?.RegisterLiveViewPassiveHud(); api.SetHudPinned(true); Game1.activeClickableMenu = null; }
+        private void GoToList() { currentView = View.List; activeCameraEntry = null; RebuildListLayout(); api.SetHudPinned(false); ModEntry.Instance?.UnregisterLiveViewPassiveHud(); }
 
         private void LandscapeToPortraitClick(int cx, int cy, out int px, out int py)
         {
@@ -729,6 +729,6 @@ namespace SmartphoneLiveCamera
             py = poy + (cx - xPositionOnScreen);
         }
 
-        protected override void cleanupBeforeExit() { if (!api.IsHudPinned()) { liveFeedTarget?.Dispose(); liveFeedTarget = null; } base.cleanupBeforeExit(); }
+        protected override void cleanupBeforeExit() { if (!api.IsHudPinned()) { liveFeedTarget?.Dispose(); liveFeedTarget = null; ModEntry.Instance?.UnregisterLiveViewPassiveHud(); } base.cleanupBeforeExit(); }
     }
 }

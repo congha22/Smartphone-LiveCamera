@@ -46,8 +46,11 @@ namespace SmartphoneLiveCamera
         // Entry
         // -------------------------------------------------------------------------
 
+        internal static ModEntry? Instance { get; private set; }
+
         public override void Entry(IModHelper helper)
         {
+            Instance = this;
             SMonitor = Monitor;
             Config = helper.ReadConfig<ModConfig>();
             SaveConfigCallback = () => helper.WriteConfig(Config);
@@ -94,14 +97,6 @@ namespace SmartphoneLiveCamera
                 Monitor.Log("Failed to register Live Camera app.", LogLevel.Warn);
             else
             {
-                // Register passive HUD screen callback (draws live feed inside phone frame)
-                smartphoneApi.RegisterPassiveHudCallback(
-                    ownerModId:        ModManifest.UniqueID,
-                    appId:             LiveCameraAppId,
-                    onDrawHudScreen:   DrawPassiveHud,
-                    onUpdateHudScreen: UpdatePassiveHud,
-                    landscape:         true);
-
                 // Register interactive controller overlay (joystick + buttons beside slider).
                 // The controller references the screen lazily via a Func so it always
                 // sees the most-recently-created screen even if OpenApp() rebuilds it.
@@ -115,6 +110,26 @@ namespace SmartphoneLiveCamera
                     onReleaseLeftClick:  ()        => { controllerHud.OnReleaseLeftClick(); SaveCameras(); },
                     getOverlayHeight:    ()        => controllerHud.GetOverlayHeight());
             }
+        }
+
+        internal void RegisterLiveViewPassiveHud()
+        {
+            smartphoneApi?.RegisterPassiveHudCallback(
+                ownerModId:        ModManifest.UniqueID,
+                appId:             LiveCameraAppId,
+                onDrawHudScreen:   DrawPassiveHud,
+                onUpdateHudScreen: UpdatePassiveHud,
+                landscape:         true);
+        }
+
+        internal void UnregisterLiveViewPassiveHud()
+        {
+            smartphoneApi?.RegisterPassiveHudCallback(
+                ownerModId:        ModManifest.UniqueID,
+                appId:             LiveCameraAppId,
+                onDrawHudScreen:   null!,
+                onUpdateHudScreen: null,
+                landscape:         true);
         }
 
         private void RegisterGmcm()
@@ -133,8 +148,8 @@ namespace SmartphoneLiveCamera
                 getValue: () => Config.CaptureRateSeconds,
                 setValue: value => Config.CaptureRateSeconds = (float)Math.Round(value * 4f) / 4f,
                 name: () => "Capture Rate (seconds)",
-                tooltip: () => "Time interval in seconds between live camera feed updates (0.25s to 20.0s).",
-                min: 0.25f,
+                tooltip: () => "Time interval in seconds between live camera feed updates (0.0s to 20.0s, 0 = real-time continuous).",
+                min: 0.0f,
                 max: 20.0f,
                 interval: 0.25f
             );

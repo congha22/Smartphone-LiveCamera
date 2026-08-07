@@ -164,7 +164,7 @@ namespace SmartphoneLiveCamera
             DrawBorder(b, boundsRateSlider, ColChassisBorder);
 
             float rate = ModEntry.Config.CaptureRateSeconds;
-            float frac = Math.Clamp((rate - 0.25f) / 19.75f, 0f, 1f);
+            float frac = Math.Clamp(rate / 20.0f, 0f, 1f);
 
             // Track background
             b.Draw(Game1.staminaRect, rateTrackRect, Color.Black * 0.60f);
@@ -480,7 +480,7 @@ namespace SmartphoneLiveCamera
         {
             if (rateTrackRect.Height <= 0) return;
             float frac = Math.Clamp((float)(my - rateTrackRect.Y) / rateTrackRect.Height, 0f, 1f);
-            float newRate = 0.25f + frac * 19.75f;
+            float newRate = frac * 20.0f;
             newRate = MathF.Round(newRate * 4f) / 4f;
             if (Math.Abs(ModEntry.Config.CaptureRateSeconds - newRate) > 0.01f)
             {

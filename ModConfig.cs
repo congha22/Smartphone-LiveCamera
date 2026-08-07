@@ -10,16 +10,17 @@ namespace SmartphoneLiveCamera
     /// </summary>
     public class ModConfig
     {
-        private float captureRateSeconds = 2.0f;
+        private float captureRateSeconds = 0.0f;
 
         /// <summary>
-        /// Time interval in seconds between live camera frame updates (0.25s to 20.0s).
-        /// Default is 2.0 seconds.
+        /// Time interval in seconds between live camera frame updates (0.0s to 20.0s).
+        /// Default is 0.0 seconds (real-time continuous refresh).
         /// </summary>
         public float CaptureRateSeconds
         {
             get => captureRateSeconds;
-            set => captureRateSeconds = System.Math.Clamp(value, 0.25f, 20.0f);
+            set => captureRateSeconds = System.Math.Clamp(value, 0.0f, 20.0f);
         }
     }
 }
+
