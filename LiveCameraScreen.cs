@@ -40,6 +40,19 @@ namespace SmartphoneLiveCamera
         private bool liveFeedHasFrame = false;
         private bool liveFeedCapturing = false;
 
+        // Paged 2x2 Grid State & CCTV Captures
+        private int currentPage = 0;
+        private const int ItemsPerPage = 4;
+        private int TotalPages => Math.Max(1, (int)Math.Ceiling(cameras.Count / (double)ItemsPerPage));
+
+        private readonly RenderTarget2D?[] gridFeedTargets = new RenderTarget2D?[ItemsPerPage];
+        private readonly bool[] gridFeedHasFrame = new bool[ItemsPerPage];
+
+        private Rectangle prevPageBtnRect = Rectangle.Empty;
+        private Rectangle nextPageBtnRect = Rectangle.Empty;
+        private bool prevPageBtnHover = false;
+        private bool nextPageBtnHover = false;
+
         // Controller-accessible state
         private float zoomLevel = 1f;
         private bool flashEnabled = false;
@@ -98,8 +111,6 @@ namespace SmartphoneLiveCamera
                 contentHeight, contentWidth);
 
         private bool isDragging; private int dragOffsetX; private int dragOffsetY;
-        private int vertScrollOffset = 0; private int maxVertScroll = 0;
-        private bool isScrolling; private int scrollStartY; private int lastScrollMouseY; private bool hasScrolled;
         private int hoveredCard = -1; private bool addBtnHover = false; private int hoveredDeleteBtn = -1;
 
         private readonly List<(Rectangle card, Rectangle deleteBtn, CameraEntry entry)> cardRects = new();
@@ -139,6 +150,7 @@ namespace SmartphoneLiveCamera
             }
             RebuildListLayout();
             ReallocLiveFeedTarget();
+            RefreshPageCaptures();
         }
 
         private int Scale(int v) => (int)Math.Round(v * phoneUiScale);
@@ -167,44 +179,122 @@ namespace SmartphoneLiveCamera
             }
         }
 
+        private void ReallocGridFeedTargets()
+        {
+            Rectangle lc = LandscapeContentRect;
+            int w = Math.Max(1, lc.Width / 2);
+            int h = Math.Max(1, lc.Height / 2);
+            for (int i = 0; i < ItemsPerPage; i++)
+            {
+                if (gridFeedTargets[i] != null && !gridFeedTargets[i]!.IsDisposed && gridFeedTargets[i]!.Width == w && gridFeedTargets[i]!.Height == h)
+                    continue;
+
+                gridFeedTargets[i]?.Dispose();
+                gridFeedTargets[i] = null;
+                gridFeedHasFrame[i] = false;
+                try
+                {
+                    gridFeedTargets[i] = new RenderTarget2D(Game1.graphics.GraphicsDevice, w, h, false,
+                        Game1.graphics.GraphicsDevice.PresentationParameters.BackBufferFormat, DepthFormat.None);
+                }
+                catch (Exception ex)
+                {
+                    ModEntry.SMonitor?.Log($"LiveCameraScreen: Could not allocate grid RenderTarget2D ({w}x{h}): {ex.Message}", StardewModdingAPI.LogLevel.Warn);
+                }
+            }
+        }
+
+        private void RefreshPageCaptures()
+        {
+            for (int i = 0; i < ItemsPerPage; i++)
+            {
+                gridFeedHasFrame[i] = false;
+                int camIdx = currentPage * ItemsPerPage + i;
+                if (camIdx >= cameras.Count) continue;
+
+                CameraEntry entry = cameras[camIdx];
+                GameLocation? loc = Game1.getLocationFromName(entry.LocationName);
+                if (loc == null) continue;
+
+                RenderTarget2D? target = gridFeedTargets[i];
+                if (target == null || target.IsDisposed) continue;
+
+                float z = entry.ZoomLevel > 0f ? entry.ZoomLevel : 1.0f;
+                try
+                {
+                    if (api.CaptureLiveFeedFrame(loc, entry.TilePosition, target, z, forceFlash: false))
+                    {
+                        gridFeedHasFrame[i] = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ModEntry.SMonitor?.Log($"LiveCameraScreen: Failed to capture grid frame for '{entry.Name}': {ex.Message}", StardewModdingAPI.LogLevel.Trace);
+                }
+            }
+        }
+
         private void RebuildListLayout()
         {
             cardRects.Clear();
             Rectangle lc = LandscapeContentRect;
             int padX = Scale(10);
             int headerH = Scale(56);
-            int padY = Scale(10);
-            int cardH = Scale(72);
-            int gap = Scale(8);
-            int dBtnW = Scale(28);
-            int dBtnH = Scale(28);
+            int padY = Scale(8);
+            int gapX = Scale(8);
+            int gapY = Scale(8);
+            int dBtnW = Scale(26);
+            int dBtnH = Scale(26);
 
-            int colWidth = (lc.Width - padX * 2 - gap) / 2;
+            int colWidth = (lc.Width - padX * 2 - gapX) / 2;
+            int rowHeight = (lc.Height - headerH - padY * 2 - gapY) / 2;
             int startX = lc.X + padX;
+            int startY = lc.Y + headerH + padY;
 
-            int rows = (cameras.Count + 1) / 2;
-            int totalContentHeight = padY + rows * (cardH + gap) + padY;
-            int visibleAreaHeight = lc.Height - headerH;
-            maxVertScroll = Math.Max(0, totalContentHeight - visibleAreaHeight);
-            vertScrollOffset = Math.Clamp(vertScrollOffset, 0, maxVertScroll);
+            ReallocGridFeedTargets();
 
-            int scrollStartY = lc.Y + headerH + padY - vertScrollOffset;
-            for (int i = 0; i < cameras.Count; i++)
+            if (currentPage >= TotalPages)
+                currentPage = Math.Max(0, TotalPages - 1);
+
+            int startIndex = currentPage * ItemsPerPage;
+            int endIndex = Math.Min(cameras.Count, startIndex + ItemsPerPage);
+
+            for (int idx = startIndex; idx < endIndex; idx++)
             {
-                int col = i % 2;
-                int row = i / 2;
-                int cardX = startX + col * (colWidth + gap);
-                int cardY = scrollStartY + row * (cardH + gap);
+                int pageOffset = idx - startIndex;
+                int col = pageOffset % 2;
+                int row = pageOffset / 2;
+                int cardX = startX + col * (colWidth + gapX);
+                int cardY = startY + row * (rowHeight + gapY);
 
-                Rectangle card = new(cardX, cardY, colWidth, cardH);
+                Rectangle card = new(cardX, cardY, colWidth, rowHeight);
                 Rectangle dBtn = new(card.Right - dBtnW - Scale(4), card.Y + Scale(4), dBtnW, dBtnH);
-                cardRects.Add((card, dBtn, cameras[i]));
+                cardRects.Add((card, dBtn, cameras[idx]));
             }
 
-            // Position "+ Add Camera" button in the top header banner on the right!
-            int addBtnW = Scale(150);
+            // Top Header Navigation & Action buttons
+            SpriteFont font = Game1.dialogueFont;
+            string title = "Live Camera";
+            float ts = 0.54f * phoneUiScale;
+            Vector2 tsz = font.MeasureString(title) * ts;
+
+            int navBtnW = Scale(30);
+            int navBtnH = Scale(30);
+            int navY = lc.Y + (headerH - navBtnH) / 2;
+
+            int titleRight = lc.X + Scale(14) + (int)tsz.X;
+            prevPageBtnRect = new Rectangle(titleRight + Scale(14), navY, navBtnW, navBtnH);
+
+            string pageStr = $"{currentPage + 1}/{TotalPages}";
+            float pts = 0.44f * phoneUiScale;
+            Vector2 psz = font.MeasureString(pageStr) * pts;
+
+            nextPageBtnRect = new Rectangle(prevPageBtnRect.Right + (int)psz.X + Scale(16), navY, navBtnW, navBtnH);
+
+            // "+ Add Camera" Button on the right side of the header banner
+            int addBtnW = Scale(140);
             int addBtnH = Scale(34);
-            addBtnRect = new Rectangle(lc.Right - addBtnW - Scale(12), lc.Y + (headerH - addBtnH) / 2, addBtnW, addBtnH);
+            addBtnRect = new Rectangle(lc.Right - addBtnW - Scale(10), lc.Y + (headerH - addBtnH) / 2, addBtnW, addBtnH);
         }
 
         public override void update(GameTime time)
@@ -303,7 +393,6 @@ namespace SmartphoneLiveCamera
 
             if (currentView == View.List)
             {
-                // Scissor test rectangle for cards grid BELOW top banner header
                 b.End();
                 b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
                         null, new RasterizerState { ScissorTestEnable = true });
@@ -317,7 +406,6 @@ namespace SmartphoneLiveCamera
                 Game1.graphics.GraphicsDevice.ScissorRectangle = prevScissor;
                 b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
 
-                // Draw static header banner on top OUTSIDE scissor test!
                 DrawListHeader(b, lc);
             }
             else
@@ -352,7 +440,6 @@ namespace SmartphoneLiveCamera
             int headerH = Scale(56);
             int scissoredTop = lc.Y + headerH;
 
-            // 2-Column Cards Grid
             for (int i = 0; i < cardRects.Count; i++)
             {
                 var (cardRect, deleteRect, entry) = cardRects[i];
@@ -360,26 +447,66 @@ namespace SmartphoneLiveCamera
 
                 bool hovered = i == hoveredCard;
 
-                // Draw theme card background using CardDrawing.DrawCard (matching Delivery Service)
-                CardDrawing.DrawCard(api, b, cardRect, hovered ? new Color(240, 244, 255) : Color.White, scale: 0.70f * phoneUiScale);
+                // Base card frame
+                CardDrawing.DrawCard(api, b, cardRect, hovered ? new Color(40, 50, 75) : ColorCard, scale: 0.70f * phoneUiScale);
 
-                // Left camera icon
-                int iconSz = Scale(32);
-                Rectangle iconBox = new(cardRect.X + Scale(8), cardRect.Y + (cardRect.Height - iconSz) / 2, iconSz, iconSz);
-
-                if (Game1.mouseCursors != null && !Game1.mouseCursors.IsDisposed)
+                // CCTV live feed frame thumbnail (scaled down preserving aspect ratio and centered)
+                if (i < gridFeedHasFrame.Length && gridFeedHasFrame[i] && gridFeedTargets[i] != null && !gridFeedTargets[i]!.IsDisposed)
                 {
-                    Rectangle src = new Rectangle(193, 373, 9, 9);
-                    int cIconSz = Scale(22);
-                    Rectangle cIconBounds = new Rectangle(iconBox.Center.X - cIconSz / 2, iconBox.Center.Y - cIconSz / 2, cIconSz, cIconSz);
-                    b.Draw(Game1.mouseCursors, cIconBounds, src, Color.DimGray * 0.85f);
+                    Texture2D tex = gridFeedTargets[i]!;
+                    float targetRatio = (float)tex.Width / tex.Height;
+                    float cardRatio = (float)cardRect.Width / cardRect.Height;
+
+                    int fitW, fitH;
+                    if (cardRatio > targetRatio)
+                    {
+                        fitH = cardRect.Height;
+                        fitW = (int)Math.Round(fitH * targetRatio);
+                    }
+                    else
+                    {
+                        fitW = cardRect.Width;
+                        fitH = (int)Math.Round(fitW / targetRatio);
+                    }
+
+                    int destX = cardRect.X + (cardRect.Width - fitW) / 2;
+                    int destY = cardRect.Y + (cardRect.Height - fitH) / 2;
+                    Rectangle destRect = new Rectangle(destX, destY, fitW, fitH);
+
+                    b.Draw(Game1.staminaRect, cardRect, new Color(15, 20, 32));
+                    b.Draw(tex, destRect, Color.White);
+                }
+                else
+                {
+                    b.Draw(Game1.staminaRect, cardRect, new Color(15, 20, 32));
+                    string loadMsg = "No Signal";
+                    float ls = 0.38f * phoneUiScale;
+                    Vector2 lsz = font.MeasureString(loadMsg) * ls;
+                    b.DrawString(font, loadMsg, new Vector2(cardRect.Center.X - lsz.X / 2f, cardRect.Center.Y - lsz.Y / 2f), ColorSubText * 0.7f, 0f, Vector2.Zero, ls, SpriteEffects.None, 1f);
                 }
 
-                // Labels - Display Name only (vertically centered in card)
-                float nameScale = 0.48f * phoneUiScale;
-                int textX = cardRect.X + Scale(44);
-                float maxTextW = cardRect.Width - Scale(76);
+                // Hover accent border overlay
+                if (hovered)
+                {
+                    DrawBorder(b, cardRect, ColorAccent, Scale(2));
+                }
 
+                // CCTV Camera Badge at top-left
+                int camNum = currentPage * ItemsPerPage + i + 1;
+                string badgeStr = $"CAM {camNum:D2}";
+                float bts = 0.36f * phoneUiScale;
+                Vector2 bsz = font.MeasureString(badgeStr) * bts;
+                Rectangle badgeBox = new Rectangle(cardRect.X + Scale(4), cardRect.Y + Scale(4), (int)bsz.X + Scale(10), (int)bsz.Y + Scale(4));
+                b.Draw(Game1.staminaRect, badgeBox, Color.Black * 0.65f);
+                b.DrawString(font, badgeStr, new Vector2(badgeBox.X + Scale(5), badgeBox.Y + Scale(2)), ColorAccent, 0f, Vector2.Zero, bts, SpriteEffects.None, 1f);
+
+                // Bottom dark gradient banner for Camera Display Name
+                int bannerH = Scale(24);
+                Rectangle bannerRect = new Rectangle(cardRect.X, cardRect.Bottom - bannerH, cardRect.Width, bannerH);
+                b.Draw(Game1.staminaRect, bannerRect, Color.Black * 0.70f);
+
+                float nameScale = 0.40f * phoneUiScale;
+                float maxTextW = cardRect.Width - Scale(12);
                 string displayName = entry.Name;
                 string shownName = displayName;
                 if (font.MeasureString(displayName).X * nameScale > maxTextW)
@@ -391,9 +518,8 @@ namespace SmartphoneLiveCamera
                     }
                     shownName = len > 0 ? displayName[..len] + "..." : "";
                 }
-
                 Vector2 nSz = font.MeasureString(shownName) * nameScale;
-                b.DrawString(font, shownName, new Vector2(textX, cardRect.Y + (cardRect.Height - nSz.Y) / 2f), Color.Black, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
+                b.DrawString(font, shownName, new Vector2(bannerRect.X + Scale(6), bannerRect.Y + (bannerH - nSz.Y) / 2f), Color.White, 0f, Vector2.Zero, nameScale, SpriteEffects.None, 1f);
 
                 // Delete 'X' Button on top-right of card
                 bool delHov = i == hoveredDeleteBtn;
@@ -408,28 +534,18 @@ namespace SmartphoneLiveCamera
             if (cameras.Count == 0)
             {
                 string emptyStr = "No cameras placed yet.";
-                float ets = 0.44f * phoneUiScale;
+                float ets = 0.48f * phoneUiScale;
                 Vector2 eSz = font.MeasureString(emptyStr) * ets;
-                b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X / 2f, lc.Y + Scale(90) - eSz.Y / 2f), Color.DimGray, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
+                b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X / 2f, lc.Center.Y - eSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
             }
+        }
 
-            // Scrollbar Indicator
-            if (maxVertScroll > 0)
-            {
-                int trackY = scissoredTop + Scale(4);
-                int trackH = lc.Height - headerH - Scale(8);
-                Rectangle trackRect = new(lc.Right - Scale(6), trackY, Scale(4), trackH);
-                b.Draw(Game1.staminaRect, trackRect, Color.Black * 0.20f);
-
-                int visibleH = lc.Height - headerH;
-                int totalH = maxVertScroll + visibleH;
-                float visibleRatio = (float)visibleH / totalH;
-                int thumbH = Math.Max(Scale(18), (int)(trackH * visibleRatio));
-                float scrollRatio = (float)vertScrollOffset / maxVertScroll;
-                int thumbY = trackY + (int)(scrollRatio * (trackH - thumbH));
-                Rectangle thumbRect = new(trackRect.X, thumbY, trackRect.Width, thumbH);
-                b.Draw(Game1.staminaRect, thumbRect, ColorAccent * 0.75f);
-            }
+        private static void DrawBorder(SpriteBatch b, Rectangle r, Color c, int thickness)
+        {
+            b.Draw(Game1.staminaRect, new Rectangle(r.X, r.Y, r.Width, thickness), c);
+            b.Draw(Game1.staminaRect, new Rectangle(r.X, r.Bottom - thickness, r.Width, thickness), c);
+            b.Draw(Game1.staminaRect, new Rectangle(r.X, r.Y, thickness, r.Height), c);
+            b.Draw(Game1.staminaRect, new Rectangle(r.Right - thickness, r.Y, thickness, r.Height), c);
         }
 
         private void DrawListHeader(SpriteBatch b, Rectangle lc)
@@ -446,6 +562,27 @@ namespace SmartphoneLiveCamera
             float ts = 0.54f * phoneUiScale;
             Vector2 tsz = font.MeasureString(title) * ts;
             b.DrawString(font, title, new Vector2(lc.X + Scale(14), lc.Y + (headerH - tsz.Y) / 2f), ColorAccent, 0f, Vector2.Zero, ts, SpriteEffects.None, 1f);
+
+            // Page navigation: < Page/Total > buttons next to title
+            bool canPrev = currentPage > 0;
+            bool canNext = currentPage < TotalPages - 1;
+
+            Color prevCol = canPrev ? (prevPageBtnHover ? new Color(70, 190, 255) : new Color(35, 100, 160)) : Color.Gray * 0.4f;
+            CardDrawing.DrawCard(api, b, prevPageBtnRect, prevCol, scale: 0.50f * phoneUiScale);
+            float arrowScale = 0.44f * phoneUiScale;
+            Vector2 leftArrowSz = font.MeasureString("<") * arrowScale;
+            b.DrawString(font, "<", new Vector2(prevPageBtnRect.Center.X - leftArrowSz.X / 2f, prevPageBtnRect.Center.Y - leftArrowSz.Y / 2f), canPrev ? Color.White : Color.Gray * 0.5f, 0f, Vector2.Zero, arrowScale, SpriteEffects.None, 1f);
+
+            string pageStr = $"{currentPage + 1}/{TotalPages}";
+            float pts = 0.44f * phoneUiScale;
+            Vector2 psz = font.MeasureString(pageStr) * pts;
+            int pageTextX = prevPageBtnRect.Right + Scale(8);
+            b.DrawString(font, pageStr, new Vector2(pageTextX, lc.Y + (headerH - psz.Y) / 2f), ColorText, 0f, Vector2.Zero, pts, SpriteEffects.None, 1f);
+
+            Color nextCol = canNext ? (nextPageBtnHover ? new Color(70, 190, 255) : new Color(35, 100, 160)) : Color.Gray * 0.4f;
+            CardDrawing.DrawCard(api, b, nextPageBtnRect, nextCol, scale: 0.50f * phoneUiScale);
+            Vector2 rightArrowSz = font.MeasureString(">") * arrowScale;
+            b.DrawString(font, ">", new Vector2(nextPageBtnRect.Center.X - rightArrowSz.X / 2f, nextPageBtnRect.Center.Y - rightArrowSz.Y / 2f), canNext ? Color.White : Color.Gray * 0.5f, 0f, Vector2.Zero, arrowScale, SpriteEffects.None, 1f);
 
             // "+ Add Camera" Button on the right side of the header banner!
             Color addCol = addBtnHover ? new Color(210, 250, 230) : Color.White;
@@ -640,32 +777,23 @@ namespace SmartphoneLiveCamera
             int poy = yPositionOnScreen - (phoneFrameHeight - phoneFrameWidth) / 2;
             if (api.HandlePhoneAppBottomNavClick(px, py, pox, poy, onBack: currentView == View.Live ? (Action)GoToList : onBack)) return;
             if (api.HandlePhoneSizeButtonsClick(x, y, xPositionOnScreen, yPositionOnScreen)) return;
-            scrollStartY = y; lastScrollMouseY = y; hasScrolled = false; isScrolling = false;
         }
 
         public override void leftClickHeld(int x, int y)
         {
             base.leftClickHeld(x, y);
             Rectangle lFrame = LandscapeFrameRect; Rectangle lContent = LandscapeContentRect;
-            if (!isDragging && !isScrolling)
+            if (!isDragging)
             {
-                int dy = y - scrollStartY;
-                if (lContent.Contains(x, y) && currentView == View.List && Math.Abs(dy) > Scale(4)) isScrolling = true;
-                else if (lFrame.Contains(x, y) && !lContent.Contains(x, y)) { isDragging = true; dragOffsetX = x - xPositionOnScreen; dragOffsetY = y - yPositionOnScreen; }
-            }
-            if (isScrolling && currentView == View.List)
-            {
-                int delta = y - lastScrollMouseY; lastScrollMouseY = y;
-                vertScrollOffset = Math.Clamp(vertScrollOffset - delta, 0, maxVertScroll);
-                hasScrolled = true; RebuildListLayout();
+                if (lFrame.Contains(x, y) && !lContent.Contains(x, y)) { isDragging = true; dragOffsetX = x - xPositionOnScreen; dragOffsetY = y - yPositionOnScreen; }
             }
         }
 
         public override void releaseLeftClick(int x, int y)
         {
             base.releaseLeftClick(x, y);
-            if (!hasScrolled && !isDragging && LandscapeContentRect.Contains(x, y)) HandleTap(x, y);
-            isDragging = false; isScrolling = false;
+            if (!isDragging && LandscapeContentRect.Contains(x, y)) HandleTap(x, y);
+            isDragging = false;
         }
 
         public override void receiveScrollWheelAction(int direction)
@@ -673,9 +801,20 @@ namespace SmartphoneLiveCamera
             base.receiveScrollWheelAction(direction);
             if (currentView == View.List)
             {
-                int amount = Scale(40);
-                vertScrollOffset = Math.Clamp(vertScrollOffset + (direction > 0 ? -amount : amount), 0, maxVertScroll);
-                RebuildListLayout();
+                if (direction > 0 && currentPage > 0)
+                {
+                    currentPage--;
+                    RebuildListLayout();
+                    RefreshPageCaptures();
+                    Game1.playSound("smallSelect");
+                }
+                else if (direction < 0 && currentPage < TotalPages - 1)
+                {
+                    currentPage++;
+                    RebuildListLayout();
+                    RefreshPageCaptures();
+                    Game1.playSound("smallSelect");
+                }
             }
         }
 
@@ -683,6 +822,9 @@ namespace SmartphoneLiveCamera
         {
             base.performHoverAction(x, y);
             hoveredCard = -1; addBtnHover = false; hoveredDeleteBtn = -1;
+            prevPageBtnHover = currentView == View.List && prevPageBtnRect.Contains(x, y);
+            nextPageBtnHover = currentView == View.List && nextPageBtnRect.Contains(x, y);
+
             if (currentView != View.List || !LandscapeContentRect.Contains(x, y)) return;
             for (int i = 0; i < cardRects.Count; i++)
             {
@@ -696,30 +838,76 @@ namespace SmartphoneLiveCamera
         private void HandleTap(int x, int y)
         {
             if (currentView == View.Live) return;
+
+            if (currentPage > 0 && prevPageBtnRect.Contains(x, y))
+            {
+                currentPage--;
+                RebuildListLayout();
+                RefreshPageCaptures();
+                Game1.playSound("smallSelect");
+                return;
+            }
+            if (currentPage < TotalPages - 1 && nextPageBtnRect.Contains(x, y))
+            {
+                currentPage++;
+                RebuildListLayout();
+                RefreshPageCaptures();
+                Game1.playSound("smallSelect");
+                return;
+            }
+
             for (int i = 0; i < cardRects.Count; i++)
             {
                 var (_, deleteRect, entry) = cardRects[i];
-                if (deleteRect.Contains(x, y)) { cameras.Remove(entry); saveCallback(); vertScrollOffset = Math.Clamp(vertScrollOffset, 0, Math.Max(0, maxVertScroll - Scale(70))); RebuildListLayout(); Game1.playSound("trashcan"); return; }
+                if (deleteRect.Contains(x, y))
+                {
+                    cameras.Remove(entry);
+                    saveCallback();
+                    if (currentPage >= TotalPages) currentPage = Math.Max(0, TotalPages - 1);
+                    RebuildListLayout();
+                    RefreshPageCaptures();
+                    Game1.playSound("trashcan");
+                    return;
+                }
             }
             for (int i = 0; i < cardRects.Count; i++)
             {
                 var (cardRect, _, entry) = cardRects[i];
-                if (cardRect.Contains(x, y)) { OpenLiveView(entry); Game1.playSound("smallSelect"); return; }
+                if (cardRect.Contains(x, y))
+                {
+                    OpenLiveView(entry);
+                    Game1.playSound("smallSelect");
+                    return;
+                }
             }
             if (addBtnRect.Contains(x, y)) AddCameraAtPlayerPosition();
         }
 
         private void AddCameraAtPlayerPosition()
         {
-            if (!StardewModdingAPI.Context.IsWorldReady || Game1.player == null || Game1.currentLocation == null) { Game1.addHUDMessage(new HUDMessage("Cannot add camera right now.", HUDMessage.error_type)); return; }
-            var entry = new CameraEntry { LocationName = Game1.currentLocation.Name, TileX = Game1.player.TilePoint.X, TileY = Game1.player.TilePoint.Y, Name = $"{Game1.currentLocation.DisplayName} ({Game1.player.TilePoint.X}, {Game1.player.TilePoint.Y})" };
-            cameras.Add(entry); saveCallback(); RebuildListLayout();
+            if (!StardewModdingAPI.Context.IsWorldReady || Game1.player == null || Game1.currentLocation == null)
+            {
+                Game1.addHUDMessage(new HUDMessage("Cannot add camera right now.", HUDMessage.error_type));
+                return;
+            }
+            var entry = new CameraEntry
+            {
+                LocationName = Game1.currentLocation.Name,
+                TileX = Game1.player.TilePoint.X,
+                TileY = Game1.player.TilePoint.Y,
+                Name = $"{Game1.currentLocation.DisplayName} ({Game1.player.TilePoint.X}, {Game1.player.TilePoint.Y})"
+            };
+            cameras.Add(entry);
+            saveCallback();
+            currentPage = TotalPages - 1;
+            RebuildListLayout();
+            RefreshPageCaptures();
             Game1.playSound("cameraNoise");
             Game1.addHUDMessage(new HUDMessage($"Camera added: {entry.Name}", HUDMessage.newQuest_type));
         }
 
         private void OpenLiveView(CameraEntry entry) { activeCameraEntry = entry; zoomLevel = entry.ZoomLevel > 0f ? entry.ZoomLevel : 1.0f; liveFeedTimer = 0; currentView = View.Live; ReallocLiveFeedTarget(); ModEntry.Instance?.RegisterLiveViewPassiveHud(); api.SetHudPinned(true); Game1.activeClickableMenu = null; }
-        private void GoToList() { currentView = View.List; activeCameraEntry = null; RebuildListLayout(); api.SetHudPinned(false); ModEntry.Instance?.UnregisterLiveViewPassiveHud(); }
+        private void GoToList() { currentView = View.List; activeCameraEntry = null; RebuildListLayout(); RefreshPageCaptures(); api.SetHudPinned(false); ModEntry.Instance?.UnregisterLiveViewPassiveHud(); }
 
         private void LandscapeToPortraitClick(int cx, int cy, out int px, out int py)
         {
@@ -729,6 +917,21 @@ namespace SmartphoneLiveCamera
             py = poy + (cx - xPositionOnScreen);
         }
 
-        protected override void cleanupBeforeExit() { if (!api.IsHudPinned()) { liveFeedTarget?.Dispose(); liveFeedTarget = null; ModEntry.Instance?.UnregisterLiveViewPassiveHud(); } base.cleanupBeforeExit(); }
+        protected override void cleanupBeforeExit()
+        {
+            if (!api.IsHudPinned())
+            {
+                liveFeedTarget?.Dispose();
+                liveFeedTarget = null;
+                ModEntry.Instance?.UnregisterLiveViewPassiveHud();
+            }
+            for (int i = 0; i < gridFeedTargets.Length; i++)
+            {
+                gridFeedTargets[i]?.Dispose();
+                gridFeedTargets[i] = null;
+                gridFeedHasFrame[i] = false;
+            }
+            base.cleanupBeforeExit();
+        }
     }
 }
