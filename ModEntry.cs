@@ -46,11 +46,13 @@ namespace SmartphoneLiveCamera
         // Entry
         // -------------------------------------------------------------------------
 
+        internal static IModHelper? SHelper { get; private set; }
         internal static ModEntry? Instance { get; private set; }
 
         public override void Entry(IModHelper helper)
         {
             Instance = this;
+            SHelper = helper;
             SMonitor = Monitor;
             Config = helper.ReadConfig<ModConfig>();
             SaveConfigCallback = () => helper.WriteConfig(Config);
@@ -82,7 +84,7 @@ namespace SmartphoneLiveCamera
             bool registered = smartphoneApi.RegisterPhoneApp(
                 ownerModId:         ModManifest.UniqueID,
                 appId:              LiveCameraAppId,
-                displayName:        "Live Camera",
+                displayName:        Helper.Translation.Get("app.name"),
                 onClick:            OpenApp,
                 closePhoneOnLaunch: true,
                 supportedSizes:     new[] { AppSize.Size1x1 },
@@ -147,8 +149,8 @@ namespace SmartphoneLiveCamera
                 mod: ModManifest,
                 getValue: () => Config.CaptureRateSeconds,
                 setValue: value => Config.CaptureRateSeconds = (float)Math.Round(value * 4f) / 4f,
-                name: () => "Capture Rate (seconds)",
-                tooltip: () => "Time interval in seconds between live camera feed updates (0.0s to 20.0s, 0 = real-time continuous).",
+                name: () => Helper.Translation.Get("config.capture_rate.name"),
+                tooltip: () => Helper.Translation.Get("config.capture_rate.tooltip"),
                 min: 0.0f,
                 max: 20.0f,
                 interval: 0.25f

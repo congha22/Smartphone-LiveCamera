@@ -119,7 +119,7 @@ namespace SmartphoneLiveCamera
             {
                 // Dim message
                 SpriteFont font = Game1.dialogueFont;
-                string msg = "Live view\nnot active";
+                string msg = ModEntry.SHelper?.Translation.Get("ui.live_view_not_active") ?? "Live view\nnot active";
                 float ts   = 0.28f;
                 Vector2 sz = font.MeasureString(msg) * ts;
                 b.DrawString(font, msg,

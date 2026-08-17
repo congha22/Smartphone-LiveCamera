@@ -1,0 +1,17 @@
+{
+  "app.name": "Live Camera",
+  "config.capture_rate.name": "Capture Rate (seconds)",
+  "config.capture_rate.tooltip": "Time interval in seconds between camera refresh (0.0s to 20.0s, 0 = live).",
+  "ui.live_view_not_active": "Live view\nnot active",
+  "ui.no_signal": "No Signal",
+  "ui.cam_badge": "CAM {{number}}",
+  "ui.no_cameras": "No cameras placed yet.",
+  "ui.add_camera": "+ Add Camera",
+  "ui.you_are_here": "You are here",
+  "ui.loading_feed": "Loading feed...",
+  "ui.live_badge": "LIVE",
+  "ui.date_format": "Yr {{year}}, {{season}} {{day}}  {{time}}",
+  "ui.photo_saved": "Photo saved!",
+  "ui.cannot_add_camera": "Cannot add camera right now.",
+  "ui.camera_added": "Camera added: {{name}}"
+}

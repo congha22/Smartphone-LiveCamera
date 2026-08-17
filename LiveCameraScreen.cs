@@ -274,7 +274,7 @@ namespace SmartphoneLiveCamera
 
             // Top Header Navigation & Action buttons
             SpriteFont font = Game1.dialogueFont;
-            string title = "Live Camera";
+            string title = ModEntry.SHelper?.Translation.Get("app.name") ?? "Live Camera";
             float ts = 0.54f * phoneUiScale;
             Vector2 tsz = font.MeasureString(title) * ts;
 
@@ -372,7 +372,7 @@ namespace SmartphoneLiveCamera
             Game1.playSound("cameraNoise");
 
             if (!string.IsNullOrEmpty(savedPath))
-                Game1.addHUDMessage(new HUDMessage("Photo saved!", HUDMessage.newQuest_type));
+                Game1.addHUDMessage(new HUDMessage(ModEntry.SHelper?.Translation.Get("ui.photo_saved") ?? "Photo saved!", HUDMessage.newQuest_type));
         }
 
         public override void draw(SpriteBatch b)
@@ -479,7 +479,7 @@ namespace SmartphoneLiveCamera
                 else
                 {
                     b.Draw(Game1.staminaRect, cardRect, new Color(15, 20, 32));
-                    string loadMsg = "No Signal";
+                    string loadMsg = ModEntry.SHelper?.Translation.Get("ui.no_signal") ?? "No Signal";
                     float ls = 0.38f * phoneUiScale;
                     Vector2 lsz = font.MeasureString(loadMsg) * ls;
                     b.DrawString(font, loadMsg, new Vector2(cardRect.Center.X - lsz.X / 2f, cardRect.Center.Y - lsz.Y / 2f), ColorSubText * 0.7f, 0f, Vector2.Zero, ls, SpriteEffects.None, 1f);
@@ -493,7 +493,7 @@ namespace SmartphoneLiveCamera
 
                 // CCTV Camera Badge at top-left
                 int camNum = currentPage * ItemsPerPage + i + 1;
-                string badgeStr = $"CAM {camNum:D2}";
+                string badgeStr = ModEntry.SHelper?.Translation.Get("ui.cam_badge", new { number = $"{camNum:D2}" }) ?? $"CAM {camNum:D2}";
                 float bts = 0.36f * phoneUiScale;
                 Vector2 bsz = font.MeasureString(badgeStr) * bts;
                 Rectangle badgeBox = new Rectangle(cardRect.X + Scale(4), cardRect.Y + Scale(4), (int)bsz.X + Scale(10), (int)bsz.Y + Scale(4));
@@ -533,7 +533,7 @@ namespace SmartphoneLiveCamera
 
             if (cameras.Count == 0)
             {
-                string emptyStr = "No cameras placed yet.";
+                string emptyStr = ModEntry.SHelper?.Translation.Get("ui.no_cameras") ?? "No cameras placed yet.";
                 float ets = 0.48f * phoneUiScale;
                 Vector2 eSz = font.MeasureString(emptyStr) * ets;
                 b.DrawString(font, emptyStr, new Vector2(lc.Center.X - eSz.X / 2f, lc.Center.Y - eSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ets, SpriteEffects.None, 1f);
@@ -558,7 +558,7 @@ namespace SmartphoneLiveCamera
             b.Draw(Game1.staminaRect, new Rectangle(lc.X, lc.Y + headerH - Scale(1), lc.Width, Scale(1)), ColorBorder);
 
             // Title on the left
-            string title = "Live Camera";
+            string title = ModEntry.SHelper?.Translation.Get("app.name") ?? "Live Camera";
             float ts = 0.54f * phoneUiScale;
             Vector2 tsz = font.MeasureString(title) * ts;
             b.DrawString(font, title, new Vector2(lc.X + Scale(14), lc.Y + (headerH - tsz.Y) / 2f), ColorAccent, 0f, Vector2.Zero, ts, SpriteEffects.None, 1f);
@@ -588,7 +588,7 @@ namespace SmartphoneLiveCamera
             Color addCol = addBtnHover ? new Color(210, 250, 230) : Color.White;
             CardDrawing.DrawCard(api, b, addBtnRect, addCol, scale: 0.55f * phoneUiScale);
 
-            string addStr = "+ Add Camera";
+            string addStr = ModEntry.SHelper?.Translation.Get("ui.add_camera") ?? "+ Add Camera";
             float ats = 0.44f * phoneUiScale;
             Vector2 aSz = font.MeasureString(addStr) * ats;
             b.DrawString(font, addStr, new Vector2(addBtnRect.Center.X - aSz.X / 2f, addBtnRect.Center.Y - aSz.Y / 2f), new Color(40, 120, 80), 0f, Vector2.Zero, ats, SpriteEffects.None, 1f);
@@ -609,7 +609,7 @@ namespace SmartphoneLiveCamera
             {
                 b.Draw(Game1.staminaRect, lc, new Color(16, 22, 34));
 
-                string msg = "You are here";
+                string msg = ModEntry.SHelper?.Translation.Get("ui.you_are_here") ?? "You are here";
                 float scale = 0.65f * phoneUiScale;
                 Vector2 sz = font.MeasureString(msg) * scale;
 
@@ -633,7 +633,7 @@ namespace SmartphoneLiveCamera
             else
             {
                 b.Draw(Game1.staminaRect, lc, ColorBackground);
-                string loadStr = "Loading feed..."; float ls = 0.40f * phoneUiScale;
+                string loadStr = ModEntry.SHelper?.Translation.Get("ui.loading_feed") ?? "Loading feed..."; float ls = 0.40f * phoneUiScale;
                 Vector2 lSz = font.MeasureString(loadStr) * ls;
                 b.DrawString(font, loadStr, new Vector2(lc.Center.X - lSz.X / 2f, lc.Center.Y - lSz.Y / 2f), ColorSubText, 0f, Vector2.Zero, ls, SpriteEffects.None, 1f);
             }
@@ -660,7 +660,8 @@ namespace SmartphoneLiveCamera
             float refreshSecs = (float)Math.Max(0.1, LiveFeedRefreshSeconds);
             float progress = Math.Clamp((float)(1.0 - (liveFeedTimer / refreshSecs)), 0f, 1f);
 
-            DrawRadialCircleBadge(b, circleX, circleY, circleR, progress, "LIVE", font, 0.48f * phoneUiScale);
+            string liveBadge = ModEntry.SHelper?.Translation.Get("ui.live_badge") ?? "LIVE";
+            DrawRadialCircleBadge(b, circleX, circleY, circleR, progress, liveBadge, font, 0.48f * phoneUiScale);
 
             // --- Bottom-Left: 2 lines (target location display name & timestamp, 2x enlarged) ---
             GameLocation? loc = Game1.getLocationFromName(activeCameraEntry.LocationName);
@@ -668,7 +669,14 @@ namespace SmartphoneLiveCamera
             if (string.IsNullOrWhiteSpace(locDisplayName)) locDisplayName = activeCameraEntry.Name;
 
             string timeStr = Game1.getTimeOfDayString(Game1.timeOfDay);
-            string dateStr = $"Yr {Game1.year}, {Utility.capitalizeFirstLetter(Game1.currentSeason ?? "Spring")} {Game1.dayOfMonth}  {timeStr}";
+            string seasonCapitalized = Utility.capitalizeFirstLetter(Game1.currentSeason ?? "Spring");
+            string dateStr = ModEntry.SHelper?.Translation.Get("ui.date_format", new
+            {
+                year = Game1.year,
+                season = seasonCapitalized,
+                day = Game1.dayOfMonth,
+                time = timeStr
+            }) ?? $"Yr {Game1.year}, {seasonCapitalized} {Game1.dayOfMonth}  {timeStr}";
 
             float line1Scale = 0.64f * phoneUiScale;
             float line2Scale = 0.56f * phoneUiScale;
@@ -736,7 +744,7 @@ namespace SmartphoneLiveCamera
                 {
                     b.Draw(Game1.staminaRect, dest, new Color(16, 22, 34));
                     SpriteFont font = Game1.dialogueFont;
-                    string msg = "You are here";
+                    string msg = ModEntry.SHelper?.Translation.Get("ui.you_are_here") ?? "You are here";
                     float scale = 0.48f;
                     Vector2 sz = font.MeasureString(msg) * scale;
                     int cardW = (int)sz.X + 24;
@@ -887,7 +895,7 @@ namespace SmartphoneLiveCamera
         {
             if (!StardewModdingAPI.Context.IsWorldReady || Game1.player == null || Game1.currentLocation == null)
             {
-                Game1.addHUDMessage(new HUDMessage("Cannot add camera right now.", HUDMessage.error_type));
+                Game1.addHUDMessage(new HUDMessage(ModEntry.SHelper?.Translation.Get("ui.cannot_add_camera") ?? "Cannot add camera right now.", HUDMessage.error_type));
                 return;
             }
             var entry = new CameraEntry
@@ -903,7 +911,7 @@ namespace SmartphoneLiveCamera
             RebuildListLayout();
             RefreshPageCaptures();
             Game1.playSound("cameraNoise");
-            Game1.addHUDMessage(new HUDMessage($"Camera added: {entry.Name}", HUDMessage.newQuest_type));
+            Game1.addHUDMessage(new HUDMessage(ModEntry.SHelper?.Translation.Get("ui.camera_added", new { name = entry.Name }) ?? $"Camera added: {entry.Name}", HUDMessage.newQuest_type));
         }
 
         private void OpenLiveView(CameraEntry entry) { activeCameraEntry = entry; zoomLevel = entry.ZoomLevel > 0f ? entry.ZoomLevel : 1.0f; liveFeedTimer = 0; currentView = View.Live; ReallocLiveFeedTarget(); ModEntry.Instance?.RegisterLiveViewPassiveHud(); api.SetHudPinned(true); Game1.activeClickableMenu = null; }
