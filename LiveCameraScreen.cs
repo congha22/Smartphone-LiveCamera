@@ -318,16 +318,9 @@ namespace SmartphoneLiveCamera
             }
             if (currentView == View.Live && activeCameraEntry != null && !liveFeedCapturing)
             {
-                if (IsPlayerInActiveCameraLocation)
-                {
-                    liveFeedTimer = LiveFeedRefreshSeconds;
-                }
-                else
-                {
-                    if (liveFeedTarget == null || liveFeedTarget.IsDisposed) ReallocLiveFeedTarget();
-                    liveFeedTimer -= time.ElapsedGameTime.TotalSeconds;
-                    if (liveFeedTimer <= 0) { liveFeedTimer = LiveFeedRefreshSeconds; TryCaptureFrame(); }
-                }
+                if (liveFeedTarget == null || liveFeedTarget.IsDisposed) ReallocLiveFeedTarget();
+                liveFeedTimer -= time.ElapsedGameTime.TotalSeconds;
+                if (liveFeedTimer <= 0) { liveFeedTimer = LiveFeedRefreshSeconds; TryCaptureFrame(); }
             }
             // Count down capture flash
             if (captureFlashRemainingSeconds > 0.0)
@@ -596,33 +589,11 @@ namespace SmartphoneLiveCamera
 
         private double LiveFeedRefreshSeconds => ModEntry.Config.CaptureRateSeconds;
 
-        private bool IsPlayerInActiveCameraLocation =>
-            activeCameraEntry != null &&
-            Game1.player?.currentLocation != null &&
-            string.Equals(Game1.player.currentLocation.Name, activeCameraEntry.LocationName, StringComparison.OrdinalIgnoreCase);
+
 
         private void DrawLiveView(SpriteBatch b, Rectangle lc)
         {
             SpriteFont font = Game1.dialogueFont;
-
-            if (IsPlayerInActiveCameraLocation)
-            {
-                b.Draw(Game1.staminaRect, lc, new Color(16, 22, 34));
-
-                string msg = ModEntry.SHelper?.Translation.Get("ui.you_are_here") ?? "You are here";
-                float scale = 0.65f * phoneUiScale;
-                Vector2 sz = font.MeasureString(msg) * scale;
-
-                int cardW = (int)sz.X + Scale(48);
-                int cardH = (int)sz.Y + Scale(32);
-                Rectangle msgBox = new Rectangle(lc.Center.X - cardW / 2, lc.Center.Y - cardH / 2, cardW, cardH);
-
-                CardDrawing.DrawCard(api, b, msgBox, new Color(240, 245, 255), scale: 0.75f * phoneUiScale);
-                b.DrawString(font, msg, new Vector2(msgBox.Center.X - sz.X / 2f, msgBox.Center.Y - sz.Y / 2f), Color.DarkSlateGray, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
-
-                DrawCctvOverlay(b, lc);
-                return;
-            }
 
             if (liveFeedHasFrame && liveFeedTarget != null && !liveFeedTarget.IsDisposed)
             {
@@ -740,21 +711,6 @@ namespace SmartphoneLiveCamera
         {
             if (currentView == View.Live)
             {
-                if (IsPlayerInActiveCameraLocation)
-                {
-                    b.Draw(Game1.staminaRect, dest, new Color(16, 22, 34));
-                    SpriteFont font = Game1.dialogueFont;
-                    string msg = ModEntry.SHelper?.Translation.Get("ui.you_are_here") ?? "You are here";
-                    float scale = 0.48f;
-                    Vector2 sz = font.MeasureString(msg) * scale;
-                    int cardW = (int)sz.X + 24;
-                    int cardH = (int)sz.Y + 16;
-                    Rectangle msgBox = new Rectangle(dest.Center.X - cardW / 2, dest.Center.Y - cardH / 2, cardW, cardH);
-                    CardDrawing.DrawCard(api, b, msgBox, new Color(240, 245, 255), scale: 0.55f);
-                    b.DrawString(font, msg, new Vector2(msgBox.Center.X - sz.X / 2f, msgBox.Center.Y - sz.Y / 2f), Color.DarkSlateGray, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
-                    DrawCctvOverlay(b, dest);
-                    return;
-                }
                 if (liveFeedHasFrame && liveFeedTarget != null && !liveFeedTarget.IsDisposed)
                 {
                     b.Draw(Game1.staminaRect, dest, Color.Black);
