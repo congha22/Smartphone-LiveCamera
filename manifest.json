@@ -1,7 +1,7 @@
 {
   "Name": "Smartphone Live Camera",
   "Author": "d5a1lamdtd",
-  "Version": "1.0",
+  "Version": "1.1",
   "Description": "Adds a Live Camera app. Place virtual cameras at any location and view a live feed from the comfort of your phone.",
   "UniqueID": "d5a1lamdtd.Smartphone-LiveCamera",
   "EntryDll": "Smartphone-LiveCamera.dll",
